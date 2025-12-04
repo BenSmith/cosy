@@ -1,0 +1,582 @@
+.TH COSY 1 "2025" "cosy 1.0" "User Commands"
+.SH NAME
+cosy \- run GUI applications in isolated Podman containers
+.SH SYNOPSIS
+.B cosy
+[\fB\-\-dry-run\fR] [\fB\-\-debug\fR]
+.I subcommand
+[\fIoptions\fR] [\fIarguments\fR]
+.SH DESCRIPTION
+.B cosy
+runs GUI applications in isolated Podman containers with persistent homes,
+display forwarding (X11/Wayland), and opt-in hardware support.
+Each container gets its own isolated home directory, preventing applications
+from accessing your personal files unless explicitly mounted.
+
+The tool follows a security-first design with rootless containers,
+minimal Linux capabilities, and explicit opt-in for hardware access.
+Applications run as your user by default - root access requires the
+.B \-\-root
+flag with
+.B run
+or
+.B enter
+commands.
+
+Containers are persistent - applications, settings, and data are preserved
+between runs. The
+.B recreate
+and
+.B clone
+commands allow changing container features while preserving both
+your data and installed packages.
+.SH GLOBAL OPTIONS
+.TP
+.B \-\-debug
+Show podman commands before executing them
+.TP
+.B \-\-dry-run
+Show podman commands without executing them. Can be used inside containers for testing purposes.
+.TP
+.BR \-\-version ", " \-V
+Show version information
+.TP
+.BR \-\-help ", " \-h
+Show help message
+.SH SUBCOMMANDS
+.TP
+.B clone [\fIoptions\fR] \fIsource\fR \fIdest\fR
+Clone a container with a new name, optionally applying new features. Creates a new container while keeping the original unchanged. Copies the home directory and transfers the writable layer, preserving all installed packages and system modifications. Supports \fB\-\-show-diff\fR to preview changes and \fB\-\-yes\fR to skip confirmation.
+.TP
+.B completion \fIshell\fR
+Generate shell completion script for bash or zsh.
+.TP
+.B create [\fIoptions\fR] \fIcontainer-name\fR
+Create a container with specified features without entering it.
+Useful for explicit separation of container setup and use.
+.TP
+.B desktop \fIaction\fR [\fIarguments\fR]
+Manage desktop application launchers for containerized applications.
+.RS
+.TP
+.B create
+Create desktop entry with options like \fB\-\-name\fR, \fB\-\-icon\fR, \fB\-\-mime-types\fR
+.TP
+.BR list ", " ls
+List all desktop entries
+.TP
+.B rm
+Remove desktop entry (container remains)
+.TP
+.B install
+Update desktop database if entries don't appear
+.RE
+.IP
+Desktop entries are stored in ~/.local/share/applications/ and automatically removed when deleting a container's home directory.
+.TP
+.B enter [\fIoptions\fR] \fIcontainer-name\fR [\fIcommand\fR]
+Enter a container interactively. Opens shell if no command specified.
+Auto-creates container if needed. Use \fB\-\-root\fR to enter as root.
+.TP
+.B help
+Show usage information
+.TP
+.B inspect [\fB\-\-format=\fR\fItype\fR] \fIcontainer-name\fR
+View container features and configuration.
+.RS
+.TP
+.B human
+Human-readable summary (default)
+.TP
+.B cli
+Copy-pasteable flags for recreating
+.RE
+.TP
+.BR list ", " ls
+List all containers with disk usage and status
+.TP
+.B network \fIaction\fR [\fIarguments\fR]
+Inspect and control container networking. See NETWORK section below.
+.TP
+.B recreate [\fIoptions\fR] \fIcontainer\fR [\fInew-name\fR]
+Recreate a container in place with new features while preserving installed packages and data. If new-name is provided, clones to that name instead (equivalent to \fBclone\fR). Supports \fB\-\-show-diff\fR to preview changes and \fB\-\-yes\fR to skip confirmation. This transfers the writable layer, so DNF-installed packages and system modifications are preserved.
+.TP
+.B rm [\-\-home] \fIcontainer-name\fR [\fIcontainer-name\fR ...]
+Remove one or more containers. Home directory is preserved by default.
+Use \fB\-\-home\fR to also remove home directories.
+.TP
+.B run [\fIoptions\fR] \fIcontainer-name\fR \fIcommand\fR [\fIargs\fR]
+Run a command in a container (non-interactive).
+Auto-creates container if needed. Use \fB\-\-root\fR to run as root.
+.TP
+.B stop \fIcontainer-name\fR
+Stop a running container
+.SH OPTIONS
+Options can be used with
+.BR create ", " enter ", and " run
+commands. Unknown flags are automatically passed through to Podman.
+.TP
+.B \-\-
+Stop parsing options. Everything after is treated as the command to execute.
+Use when your command has flags starting with dashes.
+.TP
+.B \-\-a11y
+Enable accessibility bus (AT-SPI) for screen readers and assistive technologies
+.TP
+.B \-\-audio
+Enable audio support (PipeWire/PulseAudio)
+.TP
+.B \-\-bootstrap-inline \fICOMMAND\fR
+Run inline command as bootstrap (replaces built-in user creation)
+.TP
+.B \-\-bootstrap-append-inline \fICOMMAND\fR
+Append inline command to built-in bootstrap (runs after user creation)
+.TP
+.B \-\-bootstrap-script \fIPATH\fR
+Use script file as bootstrap (replaces built-in user creation)
+.TP
+.B \-\-bootstrap-append-script \fIPATH\fR
+Append script file to built-in bootstrap (runs after user creation)
+.TP
+.B \-\-cap-add \fICAPABILITY\fR
+Add a Linux capability to the container. Can be specified multiple times.
+Common capabilities: NET_RAW, SYS_ADMIN, CHOWN, etc.
+Disables automatic capability management. Use with caution.
+.TP
+.B \-\-cap-drop \fICAPABILITY\fR
+Drop a Linux capability from the container. Can be specified multiple times.
+Disables automatic capability management.
+.TP
+.B \-\-cmd \fICOMMAND\fR
+Container default command. Supports multi-word via word-splitting (default: "sleep infinity")
+.TP
+.B \-\-dbus
+Enable D-Bus session bus for desktop integration (clipboard, notifications, file pickers).
+Automatically masks container's internal D-Bus services to prevent conflicts.
+.TP
+.B \-\-dbus-system
+Enable D-Bus system bus for system services.
+Automatically masks container's internal D-Bus services.
+.TP
+.B \-\-device \fIDEVICE\fR
+Mount a device into the container. Can be specified multiple times.
+Common devices: /dev/kvm (virtualization), /dev/video0 (webcams), /dev/ttyUSB0 (serial).
+Note: /dev/dri is managed by \-\-gpu and cannot be specified manually.
+.TP
+.B \-\-entrypoint \fIPATH\fR
+Override container entrypoint
+.TP
+.B \-\-gpu
+Enable GPU access via /dev/dri for hardware acceleration
+.TP
+.BR \-\-image ", " \-i " \fIIMAGE\fR"
+Base container image (default: fedora:42)
+.TP
+.B \-\-input
+Enable input device access for joysticks, gamepads, keyboards, mice.
+Provides access to /dev/input, /dev/uinput, /dev/hidraw*.
+Useful for gaming and input device testing.
+.TP
+.B \-\-network \fIMODE\fR
+Network mode: \fBdefault\fR (isolated with internet), \fBnone\fR (no network),
+\fBhost\fR (use host network stack), or custom network name
+.TP
+.B \-\-no-display
+Disable display forwarding (X11/Wayland). Display is enabled by default.
+.TP
+.B \-\-podman
+Enable Podman socket access to launch sibling containers on the host.
+Requires podman.socket to be running. Use for VSCode Dev Containers and similar workflows.
+.TP
+.B \-\-read-only
+Mount container's root filesystem as read-only.
+Prevents modifications to system files. Combine with \-\-tmpfs for writable directories.
+.TP
+.B \-\-root
+Execute command as root user. Only for
+.B run
+and
+.B enter
+commands.
+.TP
+.B \-\-security-opt \fIOPTION\fR
+Security options passed to Podman. Can be specified multiple times.
+.RS
+.TP
+.B seccomp=\fIPATH\fR
+Custom seccomp profile (JSON format)
+.TP
+.B seccomp=unconfined
+Disable seccomp filtering
+.TP
+.B label=type:\fITYPE\fR
+Set SELinux type (e.g., spc_t)
+.TP
+.B label=disable
+Disable SELinux labeling (default)
+.TP
+.B no-new-privileges
+Prevent privilege escalation
+.RE
+.TP
+.B \-\-systemd[\fB=\fR\fIMODE\fR]
+Systemd mode: \fBtrue\fR (auto-detect, default), \fBfalse\fR (disabled), or \fBalways\fR (forced).
+Configures container for running systemd as PID 1 with proper tmpfs mounts and cgroup access.
+Container CMD must be set to /usr/bin/init or /sbin/init separately.
+.TP
+.B \-\-tmpfs \fIPATH\fR
+Mount tmpfs at path. Provides temporary RAM storage that doesn't persist.
+Can be specified multiple times.
+Note: /tmp and /run/user/$UID are automatically mounted by cosy.
+.TP
+.BR \-v ", " \-\-volume " \fISOURCE:DEST[:OPTIONS]\fR"
+Volume mount using Docker/Podman syntax. Supports :ro (read-only), :Z (private SELinux label), :z (shared label).
+Can be specified multiple times.
+.SH ENVIRONMENT VARIABLES
+.TP
+.B COSY_AUDIO
+Enable audio support (default: false)
+.TP
+.B COSY_BOOTSTRAP_SCRIPT
+Path to custom bootstrap script (replaces built-in)
+.TP
+.B COSY_BOOTSTRAP_APPEND_SCRIPT
+Path to script to append to built-in bootstrap
+.TP
+.B COSY_CMD
+Container default command (default: "sleep infinity")
+.TP
+.B COSY_COMMAND_HISTORY
+Enable command history logging (default: false)
+.TP
+.B COSY_COMMAND_HISTORY_FILE
+Command history log file path (default: ~/.local/share/cosy/command-history.jsonl)
+.TP
+.B COSY_COMMAND_HISTORY_LOG_QUERIES
+Also log query commands like inspect and ps (default: false)
+.TP
+.B COSY_DBUS
+Enable D-Bus session bus (default: false)
+.TP
+.B COSY_DBUS_SYSTEM
+Enable D-Bus system bus (default: false)
+.TP
+.B COSY_DEBUG
+Show podman commands before executing (default: false)
+.TP
+.B COSY_DISPLAY
+Enable display forwarding (default: true)
+.TP
+.B COSY_DRY_RUN
+Show podman commands without executing (default: false)
+.TP
+.B COSY_ENTRYPOINT
+Container entrypoint override
+.TP
+.B COSY_GPU
+Enable GPU access (default: false)
+.TP
+.B COSY_HOMES_DIR
+Container homes directory (default: ~/.local/share/cosy)
+.TP
+.B COSY_IMAGE
+Default base image (default: fedora:42)
+.TP
+.B COSY_INPUT
+Enable input device access (default: false)
+.TP
+.B COSY_LOG
+Enable logging to file (default: false)
+.TP
+.B COSY_LOG_FILE
+Log file path (default: ~/.local/share/cosy/cosy.log)
+.TP
+.B COSY_NETWORK
+Network mode: default|none|host (default: default)
+.TP
+.B COSY_PODMAN
+Enable Podman socket access (default: false)
+.TP
+.B COSY_SYSTEMD
+Systemd mode: true|false|always (default: true)
+.SH FILES
+.TP
+.I ~/.local/share/cosy/<container-name>/
+Container home directory with user's settings, data, and installed applications
+.TP
+.I ~/.local/share/applications/cosy-<container>.desktop
+Desktop launcher file (when using
+.B cosy desktop create
+)
+.SH SECURITY MODEL
+.B cosy
+uses a minimal capability model for security:
+.PP
+Base containers get only 5 capabilities: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID
+.PP
+With \-\-systemd, 6 more are added: FSETID, KILL, NET_BIND_SERVICE, SETFCAP, SETPCAP, SYS_CHROOT
+.PP
+With custom networks, NET_ADMIN and NET_RAW are added
+.PP
+GUI features (audio, GPU, D-Bus, display) require no additional capabilities beyond the base set.
+.PP
+Containers run rootless with:
+.RS
+.IP \(bu 3
+User namespaces for UID/GID isolation
+.IP \(bu 3
+Isolated network namespace by default
+.IP \(bu 3
+Isolated home directory per container
+.IP \(bu 3
+Explicit opt-in for hardware access
+.IP \(bu 3
+SELinux support (uses container_t by default)
+.IP \(bu 3
+Custom seccomp profiles supported
+.RE
+.SH EXAMPLES
+.SS Quick Start
+.PP
+.RS
+.nf
+# Create and setup a container
+cosy run \-\-root \-\-gpu graphics \-\- dnf install \-y krita
+
+# Run the application
+cosy run graphics krita
+
+# Create desktop launcher
+cosy desktop create graphics \-\-name "Krita" \-\-icon krita \-\- krita
+.fi
+.RE
+.SS Container Lifecycle
+.PP
+.RS
+.nf
+# Create without entering
+cosy create \-\-gpu \-\-audio myapp
+
+# Setup as root
+cosy run \-\-root myapp \-\- dnf install \-y firefox
+
+# Run as user
+cosy run myapp firefox
+
+# Create desktop shortcut
+cosy desktop create myapp \-\-name "Firefox" \-\-icon firefox \-\- firefox
+
+# List containers
+cosy ls
+
+# Enter interactive shell
+cosy enter myapp
+
+# Stop and remove
+cosy stop myapp
+cosy rm myapp
+
+# Remove including home directory
+cosy rm \-\-home myapp
+.fi
+.RE
+.SS Changing Container Features
+.PP
+.RS
+.nf
+# Create with GPU
+cosy create \-\-gpu photo-editor
+cosy run \-\-root photo-editor \-\- dnf install \-y gimp inkscape
+
+# Later, add audio support
+cosy recreate \-\-audio \-\-show-diff photo-editor  # Preview
+cosy recreate \-\-audio photo-editor               # Apply
+
+# Installed packages (gimp, inkscape) are preserved!
+
+# Or clone to test first
+cosy clone \-\-audio photo-editor photo-editor-v2
+cosy enter photo-editor-v2  # Test it
+cosy rm photo-editor        # Remove old if satisfied
+.fi
+.RE
+.SS Volume Mounts
+.PP
+.RS
+.nf
+# Read-only mount
+cosy create \-v ~/Videos:/videos:ro vlc
+cosy run \-\-root vlc \-\- dnf install \-y vlc
+cosy run vlc vlc /videos/movie.mp4
+
+# Multiple mounts
+cosy create \-v ~/Documents:/docs \-v ~/Pictures:/pics:ro editor
+.fi
+.RE
+.SS Network Isolation
+.PP
+.RS
+.nf
+# No network access
+cosy create \-\-network none \-\-gpu isolated-app
+cosy run \-\-root isolated-app \-\- dnf install application
+cosy run isolated-app application
+
+# Host networking (less isolated)
+cosy create \-\-network host dev-tool
+.fi
+.RE
+.SS VSCode with Dev Containers
+.PP
+.RS
+.nf
+# Setup with Podman socket
+cosy create \-\-podman \-v $HOME/Projects:/home/$USER/Projects:Z vscode
+cosy run \-\-root vscode \-\- dnf install \-y code podman
+
+# Enable podman.socket on host
+systemctl \-\-user enable \-\-now podman.socket
+
+# Run VSCode
+cosy run vscode code
+
+# VSCode can launch sibling containers on host (not nested)
+.fi
+.RE
+.SS Network Debugging
+.PP
+.RS
+.nf
+# Check network activity
+cosy network inspect browser
+cosy network connections browser
+
+# Monitor in real-time
+cosy network watch browser
+
+# Test offline behavior
+cosy run browser firefox &
+sleep 5
+cosy network disconnect browser
+# (observe behavior)
+cosy network reconnect browser
+
+# Simulate poor network
+cosy network throttle streaming-app 512kbit \-\-persist
+cosy network delay streaming-app 100ms \-\-persist
+cosy network loss streaming-app 2% \-\-persist
+cosy run streaming-app vlc
+cosy network reset streaming-app
+
+# Capture traffic
+cosy network capture browser /tmp/traffic.pcap
+# (use app, press Ctrl+C)
+wireshark /tmp/traffic.pcap
+.fi
+.RE
+.SS Systemd Services
+.PP
+.RS
+.nf
+# Build systemd image
+cat > systemd.Containerfile <<'EOF'
+FROM fedora:43
+RUN dnf install \-y systemd
+CMD ["/usr/bin/init"]
+EOF
+
+podman build \-t localhost/fedora-systemd:43 \-f systemd.Containerfile .
+
+# Use with cosy
+cosy create \-\-image localhost/fedora-systemd:43 \-\-systemd=always myapp
+cosy run \-\-root myapp \-\- dnf install \-y httpd
+cosy run \-\-root myapp \-\- systemctl enable httpd
+.fi
+.RE
+.SH NETWORK
+.B cosy network
+provides comprehensive tools for inspecting and controlling container networking.
+All commands use host-side tools without requiring installation inside containers.
+.SS Inspection Commands
+.TP
+.B inspect \fIcontainer\fR
+Show network configuration, IP address, gateway, DNS, active connections, bandwidth
+.TP
+.B stats \fIcontainer\fR
+Display bandwidth statistics per interface
+.TP
+.B connections \fIcontainer\fR
+List active network connections with protocol, addresses, ports
+.TP
+.B list
+List Podman networks with cosy containers
+.TP
+.B watch \fIcontainer\fR
+Monitor new connections in real-time (press Ctrl+C to stop)
+.TP
+.B capture \fIcontainer\fR [\fIoutput-file\fR]
+Capture traffic to pcap file for Wireshark analysis (press Ctrl+C to stop)
+.SS Control Commands
+.TP
+.B disconnect \fIcontainer\fR
+Disable networking temporarily (doesn't persist across restarts)
+.TP
+.B reconnect \fIcontainer\fR
+Re-enable networking
+.SS Traffic Shaping
+.TP
+.B throttle \fIcontainer\fR \fIbandwidth\fR [\fB--persist\fR]
+Limit bandwidth (e.g., 1mbit, 512kbit). Use \-\-persist to save across restarts.
+.TP
+.B delay \fIcontainer\fR \fImilliseconds\fR [\fB--persist\fR]
+Add latency (e.g., 100ms, 1s). Use \-\-persist to save across restarts.
+.TP
+.B loss \fIcontainer\fR \fIpercentage\fR [\fB--persist\fR]
+Simulate packet loss (e.g., 5%, 10%). Use \-\-persist to save across restarts.
+.TP
+.B reset \fIcontainer\fR
+Remove all traffic shaping and clear persisted settings
+.PP
+Network modes are set at creation with \fB--network\fR:
+.RS
+.TP
+.B default
+Isolated namespace with internet via NAT (uses pasta in rootless Podman)
+.TP
+.B host
+Shares host network stack, no isolation
+.TP
+.B none
+No network connectivity, maximum isolation
+.RE
+.PP
+Required host packages: util-linux, iproute, iproute-tc, tcpdump
+.PP
+Install on Fedora:
+.RS
+.nf
+sudo dnf install \-y util-linux iproute iproute-tc tcpdump
+.fi
+.RE
+.SH NOTES
+.PP
+Containers use rootless Podman with isolated homes and network namespaces by default.
+Applications run as your user - root access requires explicit \fB\-\-root\fR flag.
+.PP
+Display forwarding (X11/Wayland) is auto-detected. Hardware access (audio, GPU, input devices)
+requires explicit flags following the principle of least privilege.
+.PP
+The
+.B recreate
+and
+.B clone
+commands preserve both your data and installed packages by transferring the container's
+writable layer. This means you can change features without reinstalling applications.
+.PP
+Unknown flags are automatically passed through to Podman, enabling forward compatibility
+with new Podman features. Cosy validates flags to prevent conflicts with its automatic
+behaviors (e.g., cannot use \-\-device /dev/dri with \-\-gpu).
+.SH SEE ALSO
+.BR podman (1),
+.BR podman-run (1),
+.BR distrobox (1)
