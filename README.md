@@ -5,7 +5,7 @@ Run GUI applications in isolated Podman containers with persistent homes, displa
 Like a tea cosy keeps your tea warm and contained, cosy wraps your GUI applications in secure, insulated containers. 🫖
 
 ---
-Cosy is inspired by distrobox, flatpak, and Steam. I leaned heavily on Claude Code, as hardcore bash scripting is not in my wheelhouse, but I didn't want to drag in a pile of dependencies. 
+Cosy is inspired by distrobox, flatpak, and Steam. I leaned heavily on Claude Code, as hardcore bash scripting is not in my wheelhouse, but this way nobody has to install a whole programming language and environment. 
 
 Cosy is an opinion for using podman expressed as a shell script. It makes the things I wanted to manage more simple. Specifically, I wanted to sandbox MCP development tools and IDEs without sharing my home directory and risking data exfiltration. And I wouldn't clutter up my system with various programming packages and modules. 
 
@@ -191,9 +191,7 @@ See [EXAMPLES.md](docs/EXAMPLES.md#running-systemd-services) for creating system
 
 ## Examples and Security Profiles
 
-For reference examples of seccomp profiles, SELinux policies, and containerfiles, see the separate [cosy-examples](https://github.com/BenSmith/cosy-examples) repository.
-
-⚠️ **These are examples only** - not production-ready or officially maintained configurations. Always create and test your own security policies based on your specific requirements.
+For reference examples of seccomp profiles, SELinux policies, and containerfiles, see the separate [cosy-sampler](https://github.com/BenSmith/cosy-sampler) repository.
 
 ## Requirements
 
