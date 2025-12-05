@@ -6178,6 +6178,7 @@ Usage: cosy [--dry-run] [--debug] COMMAND [OPTIONS] [ARGS...]
 Subcommands:
   clone      Clone a container with a new name
   create     Create a new container
+  desktop    Desktop application launcher management
   enter      Enter an existing container, creating if needed
   inspect    Inspect container configuration
   list, ls   List all cosy containers
@@ -6251,6 +6252,7 @@ Usage: cosy [--dry-run] [--debug] COMMAND [OPTIONS] [ARGS...]
 Subcommands:
   clone      Clone a container with a new name
   create     Create a new container
+  desktop    Desktop application launcher management
   enter      Enter an existing container, creating if needed
   inspect    Inspect container configuration
   list, ls   List all cosy containers
