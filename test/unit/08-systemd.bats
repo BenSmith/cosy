@@ -78,6 +78,11 @@ load '../helpers/common'
 # === Tmpfs Detection Tests ===
 
 @test "tmpfs: no flag + systemd CMD → skips /tmp (auto-detect)" {
+    # Skip in CI - requires localhost/fedora-systemd:43 image
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Systemd image detection tests require pre-built systemd image (not available in CI)"
+    fi
+
     run "${COSY_SCRIPT}" --dry-run create --image localhost/fedora-systemd:43 test-container
     assert_success
     # Count tmpfs flags: should be 1 (only /run/user, not /tmp)
@@ -110,6 +115,11 @@ load '../helpers/common'
 }
 
 @test "tmpfs: systemd=true + systemd CMD → skips /tmp" {
+    # Skip in CI - requires localhost/fedora-systemd:43 image
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Systemd image detection tests require pre-built systemd image (not available in CI)"
+    fi
+
     run "${COSY_SCRIPT}" --dry-run create --systemd=true --image localhost/fedora-systemd:43 test-container
     assert_success
     # Count tmpfs flags: should be 1 (only /run/user)
