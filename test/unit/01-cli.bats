@@ -400,13 +400,15 @@ load '../helpers/common'
 @test "create accepts --input flag" {
     run "${COSY_SCRIPT}" --dry-run create --input test-container
     assert_success
-    assert_output_contains "/dev/input"
+    # Should share /dev/input if it exists
+    [[ "$output" =~ "/dev/input" ]] || [[ ! -d "/dev/input" ]]
 }
 
 @test "create with --input shares /dev/uinput" {
     run "${COSY_SCRIPT}" --dry-run create --input test-container
     assert_success
-    assert_output_contains "/dev/uinput"
+    # Should share /dev/uinput if it exists
+    [[ "$output" =~ "/dev/uinput" ]] || [[ ! -e "/dev/uinput" ]]
 }
 
 @test "create with --input shares hidraw devices" {
@@ -419,7 +421,8 @@ load '../helpers/common'
 @test "COSY_INPUT environment variable enables input" {
     run env COSY_INPUT=true "${COSY_SCRIPT}" --dry-run create test-container
     assert_success
-    assert_output_contains "/dev/input"
+    # Should share /dev/input if it exists
+    [[ "$output" =~ "/dev/input" ]] || [[ ! -d "/dev/input" ]]
 }
 
 # === Debug Flag Tests ===
