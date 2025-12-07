@@ -248,6 +248,46 @@ get_container_pid() {
     podman inspect --format '{{.State.Pid}}' "$container" 2>/dev/null
 }
 
+# wait_for_container_running - Wait for a container to reach running state
+#
+# Args:
+#   $1 - container name
+#
+# Returns:
+#   0 if container reaches running state, 1 on timeout
+#
+# Notes:
+#   Waits up to CONTAINER_START_TIMEOUT_SEC for container to start
+#   Shows status messages at CONTAINER_START_STATUS_INTERVAL_SEC intervals
+wait_for_container_running() {
+    local container="$1"
+    local waited=0
+
+    while true; do
+        local state=$(podman inspect -f '{{.State.Status}}' "$container" 2>/dev/null || echo "unknown")
+        if [ "$state" = "running" ]; then
+            # Additional short delay to ensure init process is ready
+            sleep "$CONTAINER_INIT_DELAY_SEC"
+            return 0
+        fi
+
+        # Show status message at regular intervals
+        if [ $((waited % CONTAINER_START_STATUS_INTERVAL_SEC)) -eq 0 ] && [ $waited -gt 0 ]; then
+            echo "Still waiting for container to start (${waited}s elapsed)..." >&2
+        fi
+
+        sleep "$CONTAINER_WAIT_POLL_SEC"
+        waited=$((waited + 1))
+
+        # Timeout after configured duration
+        if [ $waited -ge "$CONTAINER_START_TIMEOUT_SEC" ]; then
+            echo "Error: Container failed to start after ${CONTAINER_START_TIMEOUT_SEC} seconds (state: $state)" >&2
+            echo "Check container logs with: podman logs $container" >&2
+            return 1
+        fi
+    done
+}
+
 # list_home_directories - List all container home directory names
 #
 # Outputs:
@@ -2571,32 +2611,7 @@ run_podman_create() {
 
     if [ "${DRY_RUN:-false}" != true ]; then
         podman start "$COSY_CONTAINER_NAME" >/dev/null
-
-        # Wait for container to be fully running (important for systemd containers)
-        local waited=0
-        while true; do
-            local state=$(podman inspect -f '{{.State.Status}}' "$COSY_CONTAINER_NAME" 2>/dev/null || echo "unknown")
-            if [ "$state" = "running" ]; then
-                # Additional short delay to ensure init process is ready
-                sleep "$CONTAINER_INIT_DELAY_SEC"
-                break
-            fi
-
-            # Show status message at regular intervals
-            if [ $((waited % CONTAINER_START_STATUS_INTERVAL_SEC)) -eq 0 ] && [ $waited -gt 0 ]; then
-                echo "Still waiting for container to start (${waited}s elapsed)..." >&2
-            fi
-
-            sleep "$CONTAINER_WAIT_POLL_SEC"
-            waited=$((waited + 1))
-
-            # Timeout after configured duration
-            if [ $waited -ge "$CONTAINER_START_TIMEOUT_SEC" ]; then
-                echo "Error: Container failed to start after ${CONTAINER_START_TIMEOUT_SEC} seconds (state: $state)" >&2
-                echo "Check container logs with: podman logs $COSY_CONTAINER_NAME" >&2
-                exit 1
-            fi
-        done
+        wait_for_container_running "$COSY_CONTAINER_NAME" || exit 1
     fi
 
     # Execute bootstrap script
@@ -3104,6 +3119,7 @@ handle_run() {
             COMMAND_HISTORY_SESSION_ID=$(get_or_create_session_id "$COSY_CONTAINER_NAME")
             if ! podman ps --filter "name=^${COSY_CONTAINER_NAME}$" --format "{{.Names}}" | grep -q "^${COSY_CONTAINER_NAME}$"; then
                 podman start "$COSY_CONTAINER_NAME" >/dev/null
+                wait_for_container_running "$COSY_CONTAINER_NAME" || exit 1
             fi
         fi
     fi
@@ -3173,6 +3189,7 @@ handle_enter() {
 
         if ! podman ps --filter "name=^${COSY_CONTAINER_NAME}$" --format "{{.Names}}" | grep -q "^${COSY_CONTAINER_NAME}$"; then
             podman start "$COSY_CONTAINER_NAME" >/dev/null
+            wait_for_container_running "$COSY_CONTAINER_NAME" || exit 1
         fi
     fi
 
