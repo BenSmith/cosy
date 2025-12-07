@@ -19,6 +19,7 @@ set -euo pipefail
 # ==============================================================================
 
 COSY_VERSION="1.0.0-dev"
+COSY_DEFAULT_IMAGE="fedora:43"
 
 # Bootstrap script configuration
 BOOTSTRAP_APPEND_PATH="${COSY_BOOTSTRAP_APPEND_SCRIPT:-}"
@@ -65,7 +66,7 @@ COSY_CMD_DEFAULT="${COSY_CMD:-sleep infinity}"
 DEBUG="${COSY_DEBUG:-false}"
 
 # Default container image
-DEFAULT_IMAGE="${COSY_IMAGE:-fedora:42}"
+DEFAULT_IMAGE="${COSY_IMAGE:-$COSY_DEFAULT_IMAGE}"
 
 # Dry run mode
 DRY_RUN="${COSY_DRY_RUN:-false}"
@@ -2780,7 +2781,7 @@ Options:
   --input                       Enable input device access (joysticks, gamepads, etc.)
   --no-display                  Disable display forwarding (enabled by default)
   --podman                      Enable Podman socket access
-  --image IMAGE, -i IMAGE       Base container image (default: fedora:42)
+  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --network MODE                Network mode: default, none, or host
   --systemd MODE                Systemd mode: true (auto), false, or always
   --cmd COMMAND                 Container default command
@@ -2822,7 +2823,7 @@ Options:
   --input                       Enable input device access (joysticks, gamepads, etc.)
   --no-display                  Disable display forwarding (enabled by default)
   --podman                      Enable Podman socket access
-  --image IMAGE, -i IMAGE       Base container image (default: fedora:42)
+  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --network MODE                Network mode: default, none, or host
   --systemd MODE                Systemd mode: true (auto), false, or always
   --device DEVICE               Mount device into container (repeatable)
@@ -6199,7 +6200,7 @@ Options (for create/run):
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
   --input              Enable input device passthrough (joysticks, gamepads, etc.)
-  --image, -i          Base image (default: fedora:42)
+  --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
   --podman             Enable Podman socket passthrough
 
@@ -6273,7 +6274,7 @@ Options (for create/run):
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
   --input              Enable input device passthrough (joysticks, gamepads, etc.)
-  --image, -i          Base image (default: fedora:42)
+  --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
   --podman             Enable Podman socket passthrough
 

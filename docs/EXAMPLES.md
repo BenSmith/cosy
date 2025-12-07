@@ -342,11 +342,11 @@ cosy ls
 #
 # === Running Containers ===
 # NAMES              STATUS                   IMAGE
-# vlc                Up 2 hours              fedora:42
+# vlc                Up 2 hours              fedora:43
 #
 # === Stopped Containers ===
 # NAMES              STATUS                   IMAGE
-# firefox-browser    Exited (0) 3 days ago   fedora:42
+# firefox-browser    Exited (0) 3 days ago   fedora:43
 ```
 
 ### Inspect Container Features
@@ -357,7 +357,7 @@ cosy inspect photo-editor
 
 # Example output:
 # Container: photo-editor
-# Base image: fedora:42
+# Base image: fedora:43
 # Network mode: default (pasta)
 # Display: enabled
 # Audio: enabled
@@ -366,7 +366,7 @@ cosy inspect photo-editor
 
 # Get command-line flags for scripting
 cosy inspect --format=cli photo-editor
-# Output: --image fedora:42 --network default --audio --gpu ...
+# Output: --image fedora:43 --network default --audio --gpu ...
 ```
 
 ### Remove Multiple Containers

@@ -75,7 +75,7 @@ load '../helpers/common'
 @test "dry-run create with default image" {
     run "${COSY_SCRIPT}" --dry-run create test-container
     assert_success
-    [[ "$output" =~ "fedora:42" ]] || [[ "$output" =~ "Image:" ]]
+    [[ "$output" =~ "fedora:43" ]] || [[ "$output" =~ "Image:" ]]
 }
 
 @test "dry-run create with custom image shows image name" {
@@ -93,7 +93,7 @@ load '../helpers/common'
 @test "dry-run shows container gets sleep infinity by default" {
     run "${COSY_SCRIPT}" --dry-run create test-container
     assert_success
-    # Default to sleep infinity (fedora:42's /bin/bash is ignored as it exits without TTY)
+    # Default to sleep infinity (fedora:43's /bin/bash is ignored as it exits without TTY)
     assert_output_contains "sleep infinity"
 }
 

@@ -279,31 +279,31 @@ cosy recreate --audio --yes photo-editor
 
 Options that can be used with `create`, `enter`, and `run` commands. All options are listed alphabetically below.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--` | - | Stop parsing options; everything after is treated as the command |
-| `--audio` | disabled | Enable audio support (PipeWire/PulseAudio) |
-| `--bootstrap-append-inline <cmd>` | - | Append inline command to built-in bootstrap (runs as root during creation) |
-| `--bootstrap-append-script <path>` | - | Append script file to built-in bootstrap (runs as root during creation) |
-| `--bootstrap-inline <cmd>` | - | Replace built-in bootstrap with inline command (runs as root during creation) |
-| `--bootstrap-script <path>` | - | Replace built-in bootstrap with script file (runs as root during creation) |
+| Option | Default          | Description |
+|--------|------------------|-------------|
+| `--` | -                | Stop parsing options; everything after is treated as the command |
+| `--audio` | disabled         | Enable audio support (PipeWire/PulseAudio) |
+| `--bootstrap-append-inline <cmd>` | -                | Append inline command to built-in bootstrap (runs as root during creation) |
+| `--bootstrap-append-script <path>` | -                | Append script file to built-in bootstrap (runs as root during creation) |
+| `--bootstrap-inline <cmd>` | -                | Replace built-in bootstrap with inline command (runs as root during creation) |
+| `--bootstrap-script <path>` | -                | Replace built-in bootstrap with script file (runs as root during creation) |
 | `--cmd <command>` | `sleep infinity` | Container default command (supports multi-word via word-splitting) |
-| `--dbus` | disabled | Enable D-Bus session bus (for desktop integration). Automatically masks container's D-Bus services via symlinks to prevent conflicts |
-| `--dbus-system` | disabled | Enable D-Bus system bus (for system services). Automatically masks container's D-Bus services via symlinks to prevent conflicts |
-| `--device <device>` | none | Mount device into container (can be specified multiple times; e.g., /dev/kvm, /dev/ttyUSB0) |
-| `--entrypoint <path>` | none | Override container entrypoint |
-| `--gpu` | disabled | Enable GPU access via `/dev/dri` |
-| `--image <image>`, `-i <image>` | `fedora:42` | Base container image to use |
-| `--input` | disabled | Enable input device access (joysticks, gamepads, keyboards, mice via `/dev/input`, `/dev/uinput`, `/dev/hidraw*`) |
-| `--network <mode>` | `default` | Network mode: `default` (isolated), `none` (disabled), or `host` (shared) |
-| `--no-display` | display enabled | Disable display forwarding (X11/Wayland) |
-| `--podman` | disabled | Enable Podman socket access (allows launching sibling containers) |
-| `--read-only` | disabled | Mount container root filesystem as read-only |
-| `--root` | disabled | Execute command as root user (only for `enter` and `run` commands) |
-| `--security-opt <option>` | `label=disable` | Security options passed to podman (e.g., `label=type:spc_t`, `seccomp=unconfined`). Can be specified multiple times |
-| `--systemd MODE` | `true` | Systemd mode: `true` (auto-detect), `false` (disabled), or `always` (forced). Accepts `--systemd=MODE` or `--systemd MODE` syntax. |
-| `--tmpfs <path>` | none | Mount tmpfs at path (can be specified multiple times) |
-| `-v <src>:<dst>[:<opts>]`, `--volume` | none | Add volume mount (can be specified multiple times; uses Docker/Podman syntax) |
+| `--dbus` | disabled         | Enable D-Bus session bus (for desktop integration). Automatically masks container's D-Bus services via symlinks to prevent conflicts |
+| `--dbus-system` | disabled         | Enable D-Bus system bus (for system services). Automatically masks container's D-Bus services via symlinks to prevent conflicts |
+| `--device <device>` | none             | Mount device into container (can be specified multiple times; e.g., /dev/kvm, /dev/ttyUSB0) |
+| `--entrypoint <path>` | none             | Override container entrypoint |
+| `--gpu` | disabled         | Enable GPU access via `/dev/dri` |
+| `--image <image>`, `-i <image>` | `fedora:43`      | Base container image to use |
+| `--input` | disabled         | Enable input device access (joysticks, gamepads, keyboards, mice via `/dev/input`, `/dev/uinput`, `/dev/hidraw*`) |
+| `--network <mode>` | `default`        | Network mode: `default` (isolated), `none` (disabled), or `host` (shared) |
+| `--no-display` | display enabled  | Disable display forwarding (X11/Wayland) |
+| `--podman` | disabled         | Enable Podman socket access (allows launching sibling containers) |
+| `--read-only` | disabled         | Mount container root filesystem as read-only |
+| `--root` | disabled         | Execute command as root user (only for `enter` and `run` commands) |
+| `--security-opt <option>` | `label=disable`  | Security options passed to podman (e.g., `label=type:spc_t`, `seccomp=unconfined`). Can be specified multiple times |
+| `--systemd MODE` | `true`           | Systemd mode: `true` (auto-detect), `false` (disabled), or `always` (forced). Accepts `--systemd=MODE` or `--systemd MODE` syntax. |
+| `--tmpfs <path>` | none             | Mount tmpfs at path (can be specified multiple times) |
+| `-v <src>:<dst>[:<opts>]`, `--volume` | none             | Add volume mount (can be specified multiple times; uses Docker/Podman syntax) |
 
 ### Detailed Examples
 
@@ -394,7 +394,7 @@ Provides access to `/dev/input` (joysticks, gamepads, keyboards, mice), `/dev/ui
 
 **Image:**
 ```bash
-cosy create --image fedora:42 myapp
+cosy create --image fedora:43 myapp
 cosy create --image registry.fedoraproject.org/fedora:41 myapp
 cosy create -i ubuntu:22.04 myapp
 ```
@@ -615,27 +615,27 @@ $ cosy --debug create --audio --memory 512m --cpus 2 myapp
 
 Set defaults for container options and cosy behavior. CLI flags override environment variables. All variables are listed alphabetically below.
 
-| Variable | Default | Description                                                             |
-|----------|---------|-------------------------------------------------------------------------|
-| `COSY_AUDIO` | `false` | Enable audio support by default                                         |
-| `COSY_BOOTSTRAP_APPEND_SCRIPT` | - | Path to script to append to built-in bootstrap (runs as root)           |
-| `COSY_BOOTSTRAP_SCRIPT` | - | Path to custom bootstrap script that replaces built-in (runs as root)   |
-| `COSY_CMD` | `sleep infinity` | Container default command (supports multi-word via word-splitting)      |
-| `COSY_DBUS` | `false` | Enable D-Bus session bus by default                                     |
-| `COSY_DBUS_SYSTEM` | `false` | Enable D-Bus system bus by default                                      |
-| `COSY_DEBUG` | `false` | Show podman commands before executing (same as `--debug`)               |
-| `COSY_DISPLAY` | `true` | Enable display forwarding by default                                    |
-| `COSY_DRY_RUN` | `false` | Show podman commands without executing (same as `--dry-run`)            |
-| `COSY_ENTRYPOINT` | none | Container entrypoint override                                           |
-| `COSY_GPU` | `false` | Enable GPU access by default                                            |
-| `COSY_HOMES_DIR` | `~/.local/share/cosy` | Container homes directory                                               |
-| `COSY_INPUT` | `false` | Enable input device access by default (joysticks, gamepads, etc.)      |
-| `COSY_IMAGE` | `fedora:42` | Default base image for containers                                       |
-| `COSY_LOG` | `false` | Enable logging to file                                                  |
+| Variable | Default                        | Description                                                             |
+|----------|--------------------------------|-------------------------------------------------------------------------|
+| `COSY_AUDIO` | `false`                        | Enable audio support by default                                         |
+| `COSY_BOOTSTRAP_APPEND_SCRIPT` | -                              | Path to script to append to built-in bootstrap (runs as root)           |
+| `COSY_BOOTSTRAP_SCRIPT` | -                              | Path to custom bootstrap script that replaces built-in (runs as root)   |
+| `COSY_CMD` | `sleep infinity`               | Container default command (supports multi-word via word-splitting)      |
+| `COSY_DBUS` | `false`                        | Enable D-Bus session bus by default                                     |
+| `COSY_DBUS_SYSTEM` | `false`                        | Enable D-Bus system bus by default                                      |
+| `COSY_DEBUG` | `false`                        | Show podman commands before executing (same as `--debug`)               |
+| `COSY_DISPLAY` | `true`                         | Enable display forwarding by default                                    |
+| `COSY_DRY_RUN` | `false`                        | Show podman commands without executing (same as `--dry-run`)            |
+| `COSY_ENTRYPOINT` | none                           | Container entrypoint override                                           |
+| `COSY_GPU` | `false`                        | Enable GPU access by default                                            |
+| `COSY_HOMES_DIR` | `~/.local/share/cosy`          | Container homes directory                                               |
+| `COSY_INPUT` | `false`                        | Enable input device access by default (joysticks, gamepads, etc.)      |
+| `COSY_IMAGE` | `fedora:43`                    | Default base image for containers                                       |
+| `COSY_LOG` | `false`                        | Enable logging to file                                                  |
 | `COSY_LOG_FILE` | `~/.local/share/cosy/cosy.log` | Log file path (when `COSY_LOG=true`)                                    |
-| `COSY_NETWORK` | `default` | Default network mode: `default`, `none`, `host`, or custom network name |
-| `COSY_PODMAN` | `false` | Enable Podman socket access by default - run sibling containers on host |
-| `COSY_SYSTEMD` | `true` | Default systemd mode: `true` (auto-detect), `false`, or `always`        |
+| `COSY_NETWORK` | `default`                      | Default network mode: `default`, `none`, `host`, or custom network name |
+| `COSY_PODMAN` | `false`                        | Enable Podman socket access by default - run sibling containers on host |
+| `COSY_SYSTEMD` | `true`                         | Default systemd mode: `true` (auto-detect), `false`, or `always`        |
 
 #### Command History (Audit Logging)
 

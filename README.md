@@ -52,7 +52,7 @@ chmod +x ~/.local/bin/cosy
 ```bash
 # Install cosy as above
 
-# Create and setup a container (Fedora 42 default)
+# Create and setup a container (Fedora 43 default)
 cosy run --root --gpu imagery -- dnf install -y gimp inkscape
 
 # Run the application

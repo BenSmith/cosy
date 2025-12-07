@@ -38,7 +38,7 @@ create_test_container() {
 
     "${COSY_SCRIPT}" create \
         --security-opt "seccomp=${SECCOMP_PROFILE}" \
-        --image fedora:42 \
+        --image fedora:43 \
         "${name}"
 }
 
