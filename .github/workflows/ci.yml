@@ -21,12 +21,10 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          cd src
           shellcheck cosy
 
       - name: Run ShellCheck (strict mode)
         run: |
-          cd src
           shellcheck --severity=style cosy
 
   unit-tests:
@@ -43,7 +41,6 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cd src
           bats test/unit/
 
   integration-tests:
@@ -71,7 +68,6 @@ jobs:
 
       - name: Run integration tests
         run: |
-          cd src
           bats -j 4 test/integration/
         env:
           # Skip tests that require actual hardware
@@ -91,7 +87,6 @@ jobs:
 
       - name: Run seccomp profile tests
         run: |
-          cd src
           bats test/integration/seccomp.bats
 
   all-tests:
