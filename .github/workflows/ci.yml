@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  shellcheck:
+    name: ShellCheck Linting
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: dnf install -y ShellCheck
+
+      - name: Run ShellCheck
+        run: |
+          cd src
+          shellcheck cosy
+
+      - name: Run ShellCheck (strict mode)
+        run: |
+          cd src
+          shellcheck --severity=style cosy
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: dnf install -y bats
+
+      - name: Run unit tests
+        run: |
+          cd src
+          bats test/unit/
+
+  integration-tests:
+    name: Integration Tests (Fedora ${{ matrix.fedora-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora-version: [43, 42]
+    container:
+      image: fedora:${{ matrix.fedora-version }}
+      options: --privileged
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y podman bats findutils
+
+      - name: Configure storage for rootless podman
+        run: |
+          mkdir -p /var/lib/containers
+          mkdir -p ~/.config/containers
+
+      - name: Run integration tests
+        run: |
+          cd src
+          bats -j 4 test/integration/
+        env:
+          # Skip tests that require actual hardware
+          COSY_TEST_SKIP_HARDWARE: "true"
+
+  seccomp-tests:
+    name: Seccomp Profile Tests
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: dnf install -y bats jq
+
+      - name: Run seccomp profile tests
+        run: |
+          cd src
+          bats test/integration/seccomp.bats
+
+  all-tests:
+    name: All Tests Passed
+    runs-on: ubuntu-latest
+    needs: [shellcheck, unit-tests, integration-tests, seccomp-tests]
+    steps:
+      - name: Success
+        run: echo "All tests passed!"
