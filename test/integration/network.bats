@@ -23,7 +23,7 @@ check_podman() {
 
 # Skip if running inside a container
 check_not_in_container() {
-    if [ -f /run/.containerenv ]; then
+    if [ -f /run/.containerenv ] || [ "${CI:-false}" = "true" ]; then
         skip "Cannot run network tests inside a container"
     fi
 }

@@ -154,6 +154,11 @@ teardown() {
 }
 
 @test "recreate in-place changes network mode" {
+    # Skip in CI - nested containers default to host networking
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Network isolation tests require non-nested containers (CI runs in container)"
+    fi
+
     "${COSY_SCRIPT}" create "$TEST_CONTAINER"
 
     run "${COSY_SCRIPT}" inspect "$TEST_CONTAINER"

@@ -129,6 +129,11 @@ teardown() {
 }
 
 @test "clone resets network mode to default" {
+    # Skip in CI - nested containers default to host networking
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Network isolation tests require non-nested containers (CI runs in container)"
+    fi
+
     "${COSY_SCRIPT}" create --network host "$TEST_CONTAINER"
 
     "${COSY_SCRIPT}" clone --yes "$TEST_CONTAINER" "$TEST_CLONE"
