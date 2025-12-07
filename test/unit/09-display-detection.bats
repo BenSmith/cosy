@@ -36,6 +36,11 @@ teardown() {
 }
 
 @test "WAYLAND_DISPLAY variable is passed through when set" {
+    # Skip in CI - requires actual XDG_RUNTIME_DIR
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Wayland tests require actual runtime directory (not available in headless CI)"
+    fi
+
     export WAYLAND_DISPLAY="wayland-0"
     export XDG_RUNTIME_DIR="/run/user/1000"
 
@@ -57,6 +62,11 @@ teardown() {
 }
 
 @test "XDG_RUNTIME_DIR is set for wayland" {
+    # Skip in CI - requires actual XDG_RUNTIME_DIR
+    if [ "${CI:-false}" = "true" ]; then
+        skip "Wayland tests require actual runtime directory (not available in headless CI)"
+    fi
+
     export WAYLAND_DISPLAY="wayland-0"
     export XDG_RUNTIME_DIR="/run/user/1000"
 
