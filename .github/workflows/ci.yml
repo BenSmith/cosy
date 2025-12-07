@@ -50,46 +50,23 @@ jobs:
       fail-fast: false
       matrix:
         fedora-version: [43, 42]
-    container:
-      image: fedora:${{ matrix.fedora-version }}
-      options: --privileged --cgroupns=host
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Fedora container for testing
         run: |
-          dnf install -y podman bats findutils shadow-utils util-linux
+          # Pull Fedora image
+          podman pull fedora:${{ matrix.fedora-version }}
 
-      - name: Setup rootless podman environment
+      - name: Install bats on host
         run: |
-          # Create user for rootless podman (container runs as root by default)
-          useradd -m -u 1000 testuser || true
+          sudo apt-get update
+          sudo apt-get install -y bats
 
-          # Setup storage directories
-          mkdir -p /var/lib/containers
-          mkdir -p /home/testuser/.local/share/containers
-          mkdir -p /home/testuser/.config/containers
-
-          # Setup XDG_RUNTIME_DIR for rootless
-          mkdir -p /run/user/1000
-          chown -R 1000:1000 /run/user/1000
-          chmod 700 /run/user/1000
-
-          # Configure storage to use vfs (more compatible in CI)
-          cat > /home/testuser/.config/containers/storage.conf << 'EOF'
-          [storage]
-          driver = "vfs"
-          EOF
-
-          chown -R 1000:1000 /home/testuser
-
-          # Fix permissions for test files (make readable by testuser)
-          chmod -R a+rX $GITHUB_WORKSPACE
-
-      - name: Run integration tests as testuser
+      - name: Run integration tests
         run: |
-          su - testuser -c "XDG_RUNTIME_DIR=/run/user/1000 bats -j 4 $GITHUB_WORKSPACE/test/integration/"
+          bats -j 4 test/integration/
         env:
           # Skip tests that require actual hardware
           COSY_TEST_SKIP_HARDWARE: "true"
@@ -97,35 +74,18 @@ jobs:
   seccomp-tests:
     name: Seccomp Profile Tests
     runs-on: ubuntu-latest
-    container:
-      image: fedora:43
-      options: --privileged --cgroupns=host
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: dnf install -y podman bats jq shadow-utils util-linux
-
-      - name: Setup rootless podman environment
         run: |
-          useradd -m -u 1000 testuser || true
-          mkdir -p /var/lib/containers
-          mkdir -p /home/testuser/.local/share/containers
-          mkdir -p /home/testuser/.config/containers
-          mkdir -p /run/user/1000
-          chown -R 1000:1000 /run/user/1000
-          chmod 700 /run/user/1000
-          cat > /home/testuser/.config/containers/storage.conf << 'EOF'
-          [storage]
-          driver = "vfs"
-          EOF
-          chown -R 1000:1000 /home/testuser
-          chmod -R a+rX $GITHUB_WORKSPACE
+          sudo apt-get update
+          sudo apt-get install -y bats jq
 
       - name: Run seccomp profile tests
         run: |
-          su - testuser -c "XDG_RUNTIME_DIR=/run/user/1000 bats $GITHUB_WORKSPACE/test/integration/seccomp.bats"
+          bats test/integration/seccomp.bats
 
   all-tests:
     name: All Tests Passed

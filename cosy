@@ -933,7 +933,7 @@ feature_display_setup() {
         local xauth_file="${XAUTHORITY:-}"
         if [ -z "$xauth_file" ] || [ ! -f "$xauth_file" ]; then
             # Try to find .mutter-Xwaylandauth or .Xauthority in XDG_RUNTIME_DIR
-            if [ -n "$XDG_RUNTIME_DIR" ]; then
+            if [ -n "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
                 xauth_file=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name ".mutter-Xwaylandauth.*" -type f 2>/dev/null | head -1)
             fi
             if [ -z "$xauth_file" ] && [ -f "$HOME/.Xauthority" ]; then
