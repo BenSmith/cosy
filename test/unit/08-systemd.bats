@@ -81,7 +81,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create --image localhost/fedora-systemd:43 test-container
     assert_success
     # Count tmpfs flags: should be 1 (only /run/user, not /tmp)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 1 ]
 }
 
@@ -89,7 +89,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create test-container
     assert_success
     # Count tmpfs flags: should be 2 (/run/user and /tmp)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 2 ]
 }
 
@@ -97,7 +97,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create --systemd=always test-container
     assert_success
     # Count tmpfs flags: should be 1 (only /run/user)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 1 ]
 }
 
@@ -105,7 +105,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create --systemd=false test-container
     assert_success
     # Count tmpfs flags: should be 2 (/run/user and /tmp)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 2 ]
 }
 
@@ -113,7 +113,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create --systemd=true --image localhost/fedora-systemd:43 test-container
     assert_success
     # Count tmpfs flags: should be 1 (only /run/user)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 1 ]
 }
 
@@ -121,7 +121,7 @@ load '../helpers/common'
     run "${COSY_SCRIPT}" --dry-run create --systemd=true test-container
     assert_success
     # Count tmpfs flags: should be 2 (/run/user and /tmp)
-    local tmpfs_count=$(echo "$output" | grep -c "^\s*--tmpfs")
+    local tmpfs_count=$(echo "$output" | grep -c -- "--tmpfs")
     [ "$tmpfs_count" -eq 2 ]
 }
 
