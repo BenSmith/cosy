@@ -15,7 +15,7 @@ setup_test_container() {
 }
 
 cleanup_test_container() {
-    "${COSY_SCRIPT}" rm --home "$TEST_CONTAINER" 2>/dev/null || true
+    "${COSY_SCRIPT}" rm --home "$TEST_CONTAINER" >/dev/null 2>&1 || true
 }
 
 # Handles multi-line dry-run output where flags and values may be on separate lines
