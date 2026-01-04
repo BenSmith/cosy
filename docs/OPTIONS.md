@@ -321,7 +321,7 @@ cosy run myapp -- grep -r "pattern" /path
 ```bash
 cosy create --audio media-player
 ```
-Mounts appropriate audio sockets from `$XDG_RUNTIME_DIR`.
+Enables audio support by mounting `/dev/snd` (for ALSA direct access) and appropriate audio sockets from `$XDG_RUNTIME_DIR` (PipeWire and/or PulseAudio when available). All components are optional - if a socket or device doesn't exist, it's skipped without errors.
 
 **Bootstrap scripts:**
 ```bash

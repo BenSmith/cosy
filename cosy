@@ -776,6 +776,11 @@ feature_audio_setup() {
     AUDIO_ARGS=()
 
     if [ "$ENABLE_AUDIO" = true ]; then
+        # Mount audio device if it exists
+        if [ -d "/dev/snd" ]; then
+            AUDIO_ARGS+=(--device /dev/snd)
+        fi
+
         if [ -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
             AUDIO_ARGS+=(
                 -v "$XDG_RUNTIME_DIR/pipewire-0:/run/user/$HOST_UID/pipewire-0"
@@ -2813,7 +2818,7 @@ Usage: cosy create [OPTIONS] CONTAINER_NAME
 Create a new container with specified features without entering it.
 
 Options:
-  --audio                       Enable audio support (PipeWire/PulseAudio)
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus (AT-SPI)
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
@@ -2856,7 +2861,7 @@ Usage: cosy run [OPTIONS] CONTAINER_NAME COMMAND [ARGS...]
 Run a command in a container, creating it if it doesn't exist.
 
 Options:
-  --audio                       Enable audio support (PipeWire/PulseAudio)
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus (AT-SPI)
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
@@ -2919,7 +2924,7 @@ Clone a container with different features, preserving installed packages.
 Options:
   --show-diff                   Preview changes without executing
   --yes, -y                     Skip confirmation prompt
-  --audio                       Enable audio support
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
@@ -2959,7 +2964,7 @@ Recreate a container in place with new features, preserving installed packages.
 Options:
   --show-diff                   Preview changes without executing
   --yes, -y                     Skip confirmation prompt
-  --audio                       Enable audio support
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
@@ -6081,7 +6086,7 @@ _cosy() {
                     # Always show cosy flags + delegate to podman if available
                     _arguments \
                         '--a11y[Enable accessibility bus]' \
-                        '--audio[Enable audio passthrough]' \
+                        '--audio[Enable audio (/dev/snd + sockets)]' \
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
@@ -6099,7 +6104,7 @@ _cosy() {
                     # Always show cosy flags + delegate to podman if available
                     _arguments \
                         '--a11y[Enable accessibility bus]' \
-                        '--audio[Enable audio passthrough]' \
+                        '--audio[Enable audio (/dev/snd + sockets)]' \
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
@@ -6238,7 +6243,7 @@ Global Options:
 
 Options (for create/run):
   --a11y               Enable accessibility bus (AT-SPI)
-  --audio              Enable audio passthrough
+  --audio              Enable audio (/dev/snd + sockets)
   --dbus               Enable D-Bus session bus
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
@@ -6312,7 +6317,7 @@ Global Options:
 
 Options (for create/run):
   --a11y               Enable accessibility bus (AT-SPI)
-  --audio              Enable audio passthrough
+  --audio              Enable audio (/dev/snd + sockets)
   --dbus               Enable D-Bus session bus
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
