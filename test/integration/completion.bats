@@ -35,3 +35,17 @@ load '../helpers/common'
     assert_failure
     assert_output_contains "Unknown shell type"
 }
+
+# === Feature Flag Completion ===
+
+@test "bash completion includes --groups flag" {
+    run "${COSY_SCRIPT}" completion bash
+    assert_success
+    assert_output_contains "--groups"
+}
+
+@test "zsh completion includes --groups flag" {
+    run "${COSY_SCRIPT}" completion zsh
+    assert_success
+    assert_output_contains "--groups"
+}

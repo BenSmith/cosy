@@ -2818,30 +2818,30 @@ Usage: cosy create [OPTIONS] CONTAINER_NAME
 Create a new container with specified features without entering it.
 
 Options:
-  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus (AT-SPI)
-  --dbus                        Enable D-Bus session bus
-  --dbus-system                 Enable D-Bus system bus
-  --gpu                         Enable GPU access via /dev/dri
-  --input                       Enable input device access (joysticks, gamepads, etc.)
-  --no-display                  Disable display forwarding (enabled by default)
-  --podman                      Enable Podman socket access
-  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
-  --network MODE                Network mode: default, none, or host
-  --systemd MODE                Systemd mode: true (auto), false, or always
-  --cmd COMMAND                 Container default command
-  --entrypoint PATH             Override container entrypoint
-  --groups GROUPS               Comma-separated list of supplementary groups (e.g., wheel,docker)
-  --device DEVICE               Mount device into container (repeatable)
-  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
-  --tmpfs PATH                  Mount tmpfs at path (repeatable)
-  --security-opt OPTION         Security options (repeatable)
-  --read-only                   Mount container root filesystem as read-only
-  --bootstrap-inline CMD        Replace built-in bootstrap with inline command
-  --bootstrap-script PATH       Replace built-in bootstrap with script file
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --bootstrap-append-inline CMD Append inline command to built-in bootstrap
   --bootstrap-append-script PATH Append script file to built-in bootstrap
+  --bootstrap-inline CMD        Replace built-in bootstrap with inline command
+  --bootstrap-script PATH       Replace built-in bootstrap with script file
+  --cmd COMMAND                 Container default command
+  --dbus                        Enable D-Bus session bus
+  --dbus-system                 Enable D-Bus system bus
+  --device DEVICE               Mount device into container (repeatable)
+  --entrypoint PATH             Override container entrypoint
+  --gpu                         Enable GPU access via /dev/dri
+  --groups GROUPS               Comma-separated list of supplementary groups (e.g., wheel,docker)
   --help, -h                    Show this help message
+  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
+  --input                       Enable input device access (joysticks, gamepads, etc.)
+  --network MODE                Network mode: default, none, or host
+  --no-display                  Disable display forwarding (enabled by default)
+  --podman                      Enable Podman socket access
+  --read-only                   Mount container root filesystem as read-only
+  --security-opt OPTION         Security options (repeatable)
+  --systemd MODE                Systemd mode: true (auto), false, or always
+  --tmpfs PATH                  Mount tmpfs at path (repeatable)
+  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
 
 Examples:
   cosy create mybox
@@ -2861,23 +2861,23 @@ Usage: cosy run [OPTIONS] CONTAINER_NAME COMMAND [ARGS...]
 Run a command in a container, creating it if it doesn't exist.
 
 Options:
-  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus (AT-SPI)
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets) (/dev/snd + PipeWire/PulseAudio sockets)
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
+  --device DEVICE               Mount device into container (repeatable)
   --gpu                         Enable GPU access via /dev/dri
+  --help, -h                    Show this help message
+  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
+  --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding (enabled by default)
   --podman                      Enable Podman socket access
-  --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
-  --network MODE                Network mode: default, none, or host
-  --systemd MODE                Systemd mode: true (auto), false, or always
-  --device DEVICE               Mount device into container (repeatable)
-  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
-  --tmpfs PATH                  Mount tmpfs at path (repeatable)
-  --security-opt OPTION         Security options (repeatable)
   --root                        Execute command as root user
-  --help, -h                    Show this help message
+  --security-opt OPTION         Security options (repeatable)
+  --systemd MODE                Systemd mode: true (auto), false, or always
+  --tmpfs PATH                  Mount tmpfs at path (repeatable)
+  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
 
 Examples:
   cosy run mybox bash
@@ -2922,23 +2922,23 @@ Usage: cosy clone [OPTIONS] SOURCE_CONTAINER DEST_CONTAINER
 Clone a container with different features, preserving installed packages.
 
 Options:
-  --show-diff                   Preview changes without executing
-  --yes, -y                     Skip confirmation prompt
-  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
+  --device DEVICE               Mount device into container (repeatable)
   --gpu                         Enable GPU access
+  --help, -h                    Show this help message
   --input                       Enable input device access
+  --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
   --podman                      Enable Podman socket access
-  --network MODE                Network mode: default, none, or host
-  --systemd MODE                Systemd mode: true, false, or always
-  --device DEVICE               Mount device into container (repeatable)
-  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
-  --tmpfs PATH                  Mount tmpfs at path (repeatable)
   --security-opt OPTION         Security options (repeatable)
-  --help, -h                    Show this help message
+  --show-diff                   Preview changes without executing
+  --systemd MODE                Systemd mode: true, false, or always
+  --tmpfs PATH                  Mount tmpfs at path (repeatable)
+  --yes, -y                     Skip confirmation prompt
+  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
 
 Examples:
   cosy clone mybox mybox-v2
@@ -2962,23 +2962,23 @@ Usage: cosy recreate [OPTIONS] CONTAINER_NAME
 Recreate a container in place with new features, preserving installed packages.
 
 Options:
-  --show-diff                   Preview changes without executing
-  --yes, -y                     Skip confirmation prompt
-  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --a11y                        Enable accessibility bus
+  --audio                       Enable audio support (/dev/snd + PipeWire/PulseAudio sockets)
   --dbus                        Enable D-Bus session bus
   --dbus-system                 Enable D-Bus system bus
+  --device DEVICE               Mount device into container (repeatable)
   --gpu                         Enable GPU access
+  --help, -h                    Show this help message
   --input                       Enable input device access
+  --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
   --podman                      Enable Podman socket access
-  --network MODE                Network mode: default, none, or host
-  --systemd MODE                Systemd mode: true, false, or always
-  --device DEVICE               Mount device into container (repeatable)
-  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
-  --tmpfs PATH                  Mount tmpfs at path (repeatable)
   --security-opt OPTION         Security options (repeatable)
-  --help, -h                    Show this help message
+  --show-diff                   Preview changes without executing
+  --systemd MODE                Systemd mode: true, false, or always
+  --tmpfs PATH                  Mount tmpfs at path (repeatable)
+  --yes, -y                     Skip confirmation prompt
+  -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
 
 Examples:
   cosy recreate --audio photo-editor
@@ -5926,11 +5926,11 @@ _cosy() {
                     COMP_CWORD=${#COMP_WORDS[@]}-1
 
                     # Add cosy-specific flags to what podman suggested
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --root"
+                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups --root"
                     COMPREPLY+=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 else
                     # Podman completion not available, just show cosy flags
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --root"
+                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups --root"
                     COMPREPLY=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 fi
             else
@@ -5986,7 +5986,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + recreate-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display"
+                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -5997,7 +5997,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + clone-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display"
+                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6090,6 +6090,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
+                        '--groups[Supplementary groups for user]:groups:' \
                         '--input[Enable input device passthrough]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
@@ -6108,6 +6109,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
+                        '--groups[Supplementary groups for user]:groups:' \
                         '--input[Enable input device passthrough]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
@@ -6141,6 +6143,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU]' \
+                        '--groups[Supplementary groups for user]:groups:' \
                         '--input[Enable input devices]' \
                         '--network[Network mode]:mode:(default host none)' \
                         '--no-display[Disable display]' \
@@ -6226,6 +6229,7 @@ Usage: cosy [--dry-run] [--debug] COMMAND [OPTIONS] [ARGS...]
 
 Subcommands:
   clone      Clone a container with a new name
+  completion Generate shell completion script (bash, zsh)
   create     Create a new container
   desktop    Desktop application launcher management
   enter      Enter an existing container, creating if needed
@@ -6300,6 +6304,7 @@ Usage: cosy [--dry-run] [--debug] COMMAND [OPTIONS] [ARGS...]
 
 Subcommands:
   clone      Clone a container with a new name
+  completion Generate shell completion script (bash, zsh)
   create     Create a new container
   desktop    Desktop application launcher management
   enter      Enter an existing container, creating if needed
