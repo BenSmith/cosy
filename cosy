@@ -2442,6 +2442,17 @@ if [ "\$PS1" ]; then
 fi
 PROMPT_EOF
 chown "\$TARGET_UID:\$TARGET_GID" "\$TARGET_HOME/.bashrc" $BS_STDERR || true
+
+# Configure sudo access if wheel or sudo group was requested
+# Due to user namespace limitations in rootless Podman, supplementary groups
+# appear as 'nobody' (GID 65534) to the user, so we grant sudo by username
+if echo "\${USER_GROUPS:-}" | grep -qE '(^|,)(wheel|sudo)(,|$)'; then
+    if command -v sudo >/dev/null 2>&1; then
+        mkdir -p /etc/sudoers.d
+        echo "\$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cosy-user
+        chmod 0440 /etc/sudoers.d/cosy-user
+    fi
+fi
 BOOTSTRAP_EOF
     fi
 
