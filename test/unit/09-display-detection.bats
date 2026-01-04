@@ -44,6 +44,11 @@ teardown() {
     export WAYLAND_DISPLAY="wayland-0"
     export XDG_RUNTIME_DIR="/run/user/1000"
 
+    # Skip if Wayland socket doesn't exist
+    if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+        skip "Wayland socket not available (not running in Wayland session)"
+    fi
+
     run "${COSY_SCRIPT}" --dry-run create "$TEST_CONTAINER"
     assert_success
     assert_output_contains "WAYLAND_DISPLAY=wayland-0"
@@ -69,6 +74,11 @@ teardown() {
 
     export WAYLAND_DISPLAY="wayland-0"
     export XDG_RUNTIME_DIR="/run/user/1000"
+
+    # Skip if Wayland socket doesn't exist
+    if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+        skip "Wayland socket not available (not running in Wayland session)"
+    fi
 
     run "${COSY_SCRIPT}" --dry-run create "$TEST_CONTAINER"
     assert_success

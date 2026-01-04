@@ -69,6 +69,7 @@ Cosy automatically detects features by examining the container configuration:
 - **--device** - Detected by `cosy.devices` label (custom devices added with `--device`)
 - **--display** - Detected by `cosy.display` label (defaults to enabled)
 - **--gpu** - Detected by `cosy.gpu` label
+- **--groups** - Detected by `cosy.groups` label (supplementary groups for container user)
 - **--input** - Detected by `cosy.input` label (input devices: `/dev/input`, `/dev/uinput`, `/dev/hidraw*`)
 - **--network** - Read from `NetworkMode` (normalized: `slirp4netns`/`pasta`/`bridge` → `default`)
 - **--podman** - Detected by `cosy.podman` label
@@ -243,6 +244,7 @@ All standard creation options (`--audio`, `--gpu`, `--network`, `-v`, etc.) can 
 - ✅ Display (`--no-display`)
 - ✅ ENTRYPOINT override (`--entrypoint`)
 - ✅ GPU (`--gpu`)
+- ✅ Groups (`--groups`)
 - ✅ Input devices (`--input`)
 - ✅ Network mode (`--network default|none|host`)
 - ✅ Podman socket (`--podman`)
@@ -293,6 +295,7 @@ Options that can be used with `create`, `enter`, and `run` commands. All options
 | `--device <device>` | none             | Mount device into container (can be specified multiple times; e.g., /dev/kvm, /dev/ttyUSB0) |
 | `--entrypoint <path>` | none             | Override container entrypoint |
 | `--gpu` | disabled         | Enable GPU access via `/dev/dri` |
+| `--groups <groups>` | none             | Comma-separated list of supplementary groups for the container user (e.g., `wheel,docker`) |
 | `--image <image>`, `-i <image>` | `fedora:43`      | Base container image to use |
 | `--input` | disabled         | Enable input device access (joysticks, gamepads, keyboards, mice via `/dev/input`, `/dev/uinput`, `/dev/hidraw*`) |
 | `--network <mode>` | `default`        | Network mode: `default` (isolated), `none` (disabled), or `host` (shared) |
@@ -378,6 +381,20 @@ cosy create --no-display background-service
 cosy create --gpu photo-editor
 ```
 By default, display forwarding is enabled (X11 and Wayland auto-detected).
+
+**User groups:**
+```bash
+# Add user to wheel group for sudo access
+cosy create --groups wheel myapp
+
+# Add user to multiple groups
+cosy create --groups wheel,docker,libvirt devbox
+
+# Combine with environment variable (for defaults)
+export COSY_GROUPS=wheel
+cosy create myapp  # user will be in wheel group
+```
+The container user is automatically added to the specified supplementary groups. Common use cases include `wheel` (for sudo access when combined with appropriate sudoers configuration), `docker` (for Docker socket access), or distribution-specific groups like `audio`, `video`, `input`.
 
 **Input devices:**
 ```bash
@@ -628,6 +645,7 @@ Set defaults for container options and cosy behavior. CLI flags override environ
 | `COSY_DRY_RUN` | `false`                        | Show podman commands without executing (same as `--dry-run`)            |
 | `COSY_ENTRYPOINT` | none                           | Container entrypoint override                                           |
 | `COSY_GPU` | `false`                        | Enable GPU access by default                                            |
+| `COSY_GROUPS` | none                           | Comma-separated list of default supplementary groups (e.g., `wheel,docker`) |
 | `COSY_HOMES_DIR` | `~/.local/share/cosy`          | Container homes directory                                               |
 | `COSY_INPUT` | `false`                        | Enable input device access by default (joysticks, gamepads, etc.)      |
 | `COSY_IMAGE` | `fedora:43`                    | Default base image for containers                                       |

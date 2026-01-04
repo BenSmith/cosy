@@ -62,6 +62,9 @@ COSY_SYSTEMD_DEFAULT="${COSY_SYSTEMD:-true}"
 COSY_ENTRYPOINT_DEFAULT="${COSY_ENTRYPOINT:-}"
 COSY_CMD_DEFAULT="${COSY_CMD:-sleep infinity}"
 
+# User groups configuration
+COSY_GROUPS_DEFAULT="${COSY_GROUPS:-}"
+
 # Debug mode
 DEBUG="${COSY_DEBUG:-false}"
 
@@ -1662,6 +1665,7 @@ intercepted_detect() {
     USER_ENV_VARS=()
     USER_LABELS=()
     USER_TMPFS=()
+    USER_GROUPS=""
 
     local devices_label
     devices_label=$(get_cached_label "$container" "cosy.devices")
@@ -1691,6 +1695,12 @@ intercepted_detect() {
     mounts_label=$(get_cached_label "$container" "cosy.mounts")
     if [ -n "$mounts_label" ] && [ "$mounts_label" != "<no value>" ]; then
         IFS=',' read -ra EXTRA_MOUNTS <<< "$mounts_label"
+    fi
+
+    local groups_label
+    groups_label=$(get_cached_label "$container" "cosy.groups")
+    if [ -n "$groups_label" ] && [ "$groups_label" != "<no value>" ]; then
+        USER_GROUPS="$groups_label"
     fi
 }
 
@@ -1792,6 +1802,11 @@ automatic_setup_home() {
         -e "HOME=/home/$HOST_USER"
         -e "USER=$HOST_USER"
     )
+
+    # Store user groups configuration in label for detection/recreation
+    if [ -n "${USER_GROUPS:-}" ]; then
+        LABEL_ARGS+=(--label "cosy.groups=$USER_GROUPS")
+    fi
 }
 
 # automatic_setup_user_namespace - Configure user namespace mapping
@@ -2232,6 +2247,11 @@ parse_container_args() {
                 shift 2
                 continue
                 ;;
+            --groups)
+                USER_GROUPS="$2"
+                shift 2
+                continue
+                ;;
             --help|-h|help)
                 # Show context-aware help based on subcommand
                 if is_create_subcommand; then
@@ -2368,6 +2388,7 @@ if ! getent passwd "\$TARGET_UID" >/dev/null 2>&1; then
     useradd \\
         -u "\$TARGET_UID" \\
         -g "\$TARGET_GID" \\
+        \${USER_GROUPS:+-G "\$USER_GROUPS"} \\
         -d "\$TARGET_HOME" \\
         -s /bin/bash \\
         -M \\
@@ -2626,6 +2647,7 @@ run_podman_create() {
             -e COSY_CONTAINER_HOME="/home/$HOST_USER" \
             -e COSY_CONTAINER_UID="$HOST_UID" \
             -e COSY_CONTAINER_USER="$HOST_USER" \
+            -e USER_GROUPS="$USER_GROUPS" \
             --user root \
             "$COSY_CONTAINER_NAME" \
             /bin/sh -c "$BOOTSTRAP_SCRIPT"
@@ -2760,6 +2782,9 @@ init_container_vars() {
     USER_LABELS=()
     USER_ENV_VARS=()
 
+    # User configuration
+    USER_GROUPS="${COSY_GROUPS_DEFAULT}"
+
     # Label args - mark as cosy-managed
     LABEL_ARGS=(--label "cosy.managed=true")
 
@@ -2801,6 +2826,7 @@ Options:
   --systemd MODE                Systemd mode: true (auto), false, or always
   --cmd COMMAND                 Container default command
   --entrypoint PATH             Override container entrypoint
+  --groups GROUPS               Comma-separated list of supplementary groups (e.g., wheel,docker)
   --device DEVICE               Mount device into container (repeatable)
   -v, --volume SRC:DST[:OPTS]   Add volume mount (repeatable)
   --tmpfs PATH                  Mount tmpfs at path (repeatable)

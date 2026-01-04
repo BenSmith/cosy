@@ -175,3 +175,104 @@ teardown() {
     run podman exec "$TEST_CONTAINER" test -d "$user_home/.local/state"
     assert_success
 }
+
+# === User Groups Tests ===
+
+@test "user is added to specified group with --groups" {
+    run "${COSY_SCRIPT}" create --groups wheel "$TEST_CONTAINER"
+    assert_success
+
+    # Check user is in wheel group
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    run podman exec "$TEST_CONTAINER" id -nG "$username"
+    assert_success
+    assert_output_contains "wheel"
+}
+
+@test "user is added to multiple groups with --groups" {
+    run "${COSY_SCRIPT}" create --groups wheel,users,audio "$TEST_CONTAINER"
+    assert_success
+
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    # Check user is in all specified groups
+    run podman exec "$TEST_CONTAINER" id -nG "$username"
+    assert_success
+    assert_output_contains "wheel"
+    assert_output_contains "users"
+    assert_output_contains "audio"
+}
+
+@test "groups are stored in container label" {
+    "${COSY_SCRIPT}" create --groups wheel,docker "$TEST_CONTAINER"
+
+    run podman inspect --format '{{index .Config.Labels "cosy.groups"}}' "$TEST_CONTAINER"
+    assert_success
+    assert_output_contains "wheel,docker"
+}
+
+@test "groups are preserved during recreate" {
+    "${COSY_SCRIPT}" create --groups wheel "$TEST_CONTAINER"
+
+    # Recreate container
+    run "${COSY_SCRIPT}" recreate --yes "$TEST_CONTAINER"
+    assert_success
+
+    # Ensure container is running
+    podman start "$TEST_CONTAINER" >/dev/null 2>&1 || true
+    sleep 1
+
+    # Verify groups are still present
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    run podman exec "$TEST_CONTAINER" id -nG "$username"
+    assert_success
+    assert_output_contains "wheel"
+}
+
+@test "container works without --groups flag" {
+    run "${COSY_SCRIPT}" create "$TEST_CONTAINER"
+    assert_success
+
+    # User should be created but not in supplementary groups
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    run podman exec "$TEST_CONTAINER" id -u "$username"
+    assert_success
+}
+
+@test "COSY_GROUPS environment variable sets default groups" {
+    export COSY_GROUPS="wheel"
+    run "${COSY_SCRIPT}" create "$TEST_CONTAINER"
+    assert_success
+
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    run podman exec "$TEST_CONTAINER" id -nG "$username"
+    assert_success
+    assert_output_contains "wheel"
+
+    unset COSY_GROUPS
+}
+
+@test "--groups flag overrides COSY_GROUPS environment variable" {
+    export COSY_GROUPS="audio"
+    run "${COSY_SCRIPT}" create --groups wheel "$TEST_CONTAINER"
+    assert_success
+
+    local username
+    username=$(podman exec "$TEST_CONTAINER" printenv COSY_CONTAINER_USER)
+
+    run podman exec "$TEST_CONTAINER" id -nG "$username"
+    assert_success
+    assert_output_contains "wheel"
+    assert_output_not_contains "audio"
+
+    unset COSY_GROUPS
+}
