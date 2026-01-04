@@ -62,8 +62,8 @@ COSY_SYSTEMD_DEFAULT="${COSY_SYSTEMD:-true}"
 COSY_ENTRYPOINT_DEFAULT="${COSY_ENTRYPOINT:-}"
 COSY_CMD_DEFAULT="${COSY_CMD:-sleep infinity}"
 
-# User groups configuration
-COSY_GROUPS_DEFAULT="${COSY_GROUPS:-}"
+# Sudo configuration
+COSY_SUDO_DEFAULT="${COSY_SUDO:-false}"
 
 # Debug mode
 DEBUG="${COSY_DEBUG:-false}"
@@ -1670,7 +1670,6 @@ intercepted_detect() {
     USER_ENV_VARS=()
     USER_LABELS=()
     USER_TMPFS=()
-    USER_GROUPS=""
 
     local devices_label
     devices_label=$(get_cached_label "$container" "cosy.devices")
@@ -1702,10 +1701,10 @@ intercepted_detect() {
         IFS=',' read -ra EXTRA_MOUNTS <<< "$mounts_label"
     fi
 
-    local groups_label
-    groups_label=$(get_cached_label "$container" "cosy.groups")
-    if [ -n "$groups_label" ] && [ "$groups_label" != "<no value>" ]; then
-        USER_GROUPS="$groups_label"
+    local sudo_label
+    sudo_label=$(get_cached_label "$container" "cosy.sudo")
+    if [ "$sudo_label" = "true" ]; then
+        ENABLE_SUDO=true
     fi
 }
 
@@ -1808,9 +1807,9 @@ automatic_setup_home() {
         -e "USER=$HOST_USER"
     )
 
-    # Store user groups configuration in label for detection/recreation
-    if [ -n "${USER_GROUPS:-}" ]; then
-        LABEL_ARGS+=(--label "cosy.groups=$USER_GROUPS")
+    # Store sudo configuration in label for detection/recreation
+    if [ "$ENABLE_SUDO" = true ]; then
+        LABEL_ARGS+=(--label "cosy.sudo=true")
     fi
 }
 
@@ -2252,9 +2251,9 @@ parse_container_args() {
                 shift 2
                 continue
                 ;;
-            --groups)
-                USER_GROUPS="$2"
-                shift 2
+            --sudo)
+                ENABLE_SUDO=true
+                shift
                 continue
                 ;;
             --help|-h|help)
@@ -2393,7 +2392,6 @@ if ! getent passwd "\$TARGET_UID" >/dev/null 2>&1; then
     useradd \\
         -u "\$TARGET_UID" \\
         -g "\$TARGET_GID" \\
-        \${USER_GROUPS:+-G "\$USER_GROUPS"} \\
         -d "\$TARGET_HOME" \\
         -s /bin/bash \\
         -M \\
@@ -2443,10 +2441,8 @@ fi
 PROMPT_EOF
 chown "\$TARGET_UID:\$TARGET_GID" "\$TARGET_HOME/.bashrc" $BS_STDERR || true
 
-# Configure sudo access if wheel or sudo group was requested
-# Due to user namespace limitations in rootless Podman, supplementary groups
-# appear as 'nobody' (GID 65534) to the user, so we grant sudo by username
-if echo "\${USER_GROUPS:-}" | grep -qE '(^|,)(wheel|sudo)(,|$)'; then
+# Configure passwordless sudo if --sudo flag was used
+if [ "\${ENABLE_SUDO:-false}" = "true" ]; then
     if command -v sudo >/dev/null 2>&1; then
         mkdir -p /etc/sudoers.d
         echo "\$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cosy-user
@@ -2663,7 +2659,7 @@ run_podman_create() {
             -e COSY_CONTAINER_HOME="/home/$HOST_USER" \
             -e COSY_CONTAINER_UID="$HOST_UID" \
             -e COSY_CONTAINER_USER="$HOST_USER" \
-            -e USER_GROUPS="$USER_GROUPS" \
+            -e ENABLE_SUDO="$ENABLE_SUDO" \
             --user root \
             "$COSY_CONTAINER_NAME" \
             /bin/sh -c "$BOOTSTRAP_SCRIPT"
@@ -2798,8 +2794,8 @@ init_container_vars() {
     USER_LABELS=()
     USER_ENV_VARS=()
 
-    # User configuration
-    USER_GROUPS="${COSY_GROUPS_DEFAULT}"
+    # Sudo configuration
+    ENABLE_SUDO="${COSY_SUDO_DEFAULT}"
 
     # Label args - mark as cosy-managed
     LABEL_ARGS=(--label "cosy.managed=true")
@@ -2841,7 +2837,7 @@ Options:
   --device DEVICE               Mount device into container (repeatable)
   --entrypoint PATH             Override container entrypoint
   --gpu                         Enable GPU access via /dev/dri
-  --groups GROUPS               Comma-separated list of supplementary groups (e.g., wheel,docker)
+  --sudo                        Enable passwordless sudo access
   --help, -h                    Show this help message
   --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
@@ -5937,11 +5933,11 @@ _cosy() {
                     COMP_CWORD=${#COMP_WORDS[@]}-1
 
                     # Add cosy-specific flags to what podman suggested
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups --root"
+                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo --root"
                     COMPREPLY+=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 else
                     # Podman completion not available, just show cosy flags
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups --root"
+                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo --root"
                     COMPREPLY=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 fi
             else
@@ -5997,7 +5993,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + recreate-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups"
+                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6008,7 +6004,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + clone-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --groups"
+                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6101,7 +6097,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
-                        '--groups[Supplementary groups for user]:groups:' \
+                        '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input device passthrough]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
@@ -6120,7 +6116,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU passthrough]' \
-                        '--groups[Supplementary groups for user]:groups:' \
+                        '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input device passthrough]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
@@ -6154,7 +6150,7 @@ _cosy() {
                         '--dbus-system[Enable D-Bus system]' \
                         '--dbus[Enable D-Bus session]' \
                         '--gpu[Enable GPU]' \
-                        '--groups[Supplementary groups for user]:groups:' \
+                        '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input devices]' \
                         '--network[Network mode]:mode:(default host none)' \
                         '--no-display[Disable display]' \

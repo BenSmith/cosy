@@ -38,14 +38,14 @@ load '../helpers/common'
 
 # === Feature Flag Completion ===
 
-@test "bash completion includes --groups flag" {
+@test "bash completion includes --sudo flag" {
     run "${COSY_SCRIPT}" completion bash
     assert_success
-    assert_output_contains "--groups"
+    assert_output_contains "--sudo"
 }
 
-@test "zsh completion includes --groups flag" {
+@test "zsh completion includes --sudo flag" {
     run "${COSY_SCRIPT}" completion zsh
     assert_success
-    assert_output_contains "--groups"
+    assert_output_contains "--sudo"
 }

@@ -553,15 +553,11 @@ cosy enter myapp
 For development environments where you want sudo access:
 
 ```bash
-# Create container with wheel group access
-cosy create --groups wheel devbox
-
-# Inside the container, configure passwordless sudo (one-time setup)
-cosy run --root devbox -- sh -c 'echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd'
-cosy run --root devbox -- chmod 0440 /etc/sudoers.d/wheel-nopasswd
+# Create container with passwordless sudo
+cosy create --sudo devbox
 
 # Install packages and configure
-cosy run --root devbox -- dnf install -y sudo vim git
+cosy run --root devbox -- dnf install -y vim git
 
 # Now you can use sudo as the regular user
 cosy enter devbox
@@ -570,7 +566,7 @@ sudo dnf install htop  # Works without password
 
 **When to use sudo vs --root:**
 - Use `--root` for quick system administration (installing packages, system updates)
-- Use `--groups wheel` + sudo for development environments where you frequently need root (more realistic simulation of normal Linux usage)
+- Use `--sudo` for development environments where you frequently need root (more realistic simulation of normal Linux usage)
 
 ## Network Debugging and Control
 
