@@ -1062,11 +1062,33 @@ feature_gpu_setup() {
 }
 
 feature_gpu_validate() {
-    # GPU validation: check if /dev/dri exists
-    if [ "$ENABLE_GPU" = true ] && [ ! -d "/dev/dri" ]; then
+    if [ "$ENABLE_GPU" != true ]; then
+        return 0
+    fi
+
+    # Check if /dev/dri exists
+    if [ ! -d "/dev/dri" ]; then
         echo "Warning: --gpu specified but /dev/dri not found" >&2
         echo "GPU acceleration may not work." >&2
+        return 0
     fi
+
+    # Check if user has access to GPU devices
+    local has_access=false
+    for device in /dev/dri/card* /dev/dri/renderD*; do
+        if [ -e "$device" ] && [ -r "$device" ]; then
+            has_access=true
+            break
+        fi
+    done
+
+    if [ "$has_access" = false ]; then
+        echo "Warning: --gpu specified but you don't have read access to GPU devices in /dev/dri" >&2
+        echo "You may need to add your user to the 'video' and 'render' groups:" >&2
+        echo "  sudo usermod -a -G video,render $HOST_USER" >&2
+        echo "Then log out and log back in for the changes to take effect." >&2
+    fi
+
     return 0
 }
 
@@ -1127,11 +1149,33 @@ feature_input_setup() {
 }
 
 feature_input_validate() {
-    # Input validation: check if /dev/input exists
-    if [ "$ENABLE_INPUT" = true ] && [ ! -d "/dev/input" ]; then
+    if [ "$ENABLE_INPUT" != true ]; then
+        return 0
+    fi
+
+    # Check if /dev/input exists
+    if [ ! -d "/dev/input" ]; then
         echo "Warning: --input specified but /dev/input not found" >&2
         echo "Input device access may not work." >&2
+        return 0
     fi
+
+    # Check if user has access to input devices
+    local has_access=false
+    for device in /dev/input/event* /dev/input/js* /dev/input/mouse*; do
+        if [ -e "$device" ] && [ -r "$device" ]; then
+            has_access=true
+            break
+        fi
+    done
+
+    if [ "$has_access" = false ]; then
+        echo "Warning: --input specified but you don't have read access to input devices in /dev/input" >&2
+        echo "You may need to add your user to the 'input' group:" >&2
+        echo "  sudo usermod -a -G input $HOST_USER" >&2
+        echo "Then log out and log back in for the changes to take effect." >&2
+    fi
+
     return 0
 }
 
@@ -1318,6 +1362,29 @@ validate_devices() {
                 echo "Remove either --device $device or --input." >&2
                 exit 1
             fi
+        fi
+
+        # Warn if user doesn't have access to the device
+        if [ -e "$device" ] && [ ! -r "$device" ]; then
+            echo "Warning: --device $device specified but you don't have read access" >&2
+            echo "The device may not work properly in the container." >&2
+
+            # Provide helpful suggestions for common device types
+            case "$device" in
+                /dev/kvm)
+                    echo "You may need to add your user to the 'kvm' group:" >&2
+                    echo "  sudo usermod -a -G kvm $HOST_USER" >&2
+                    ;;
+                /dev/video*)
+                    echo "You may need to add your user to the 'video' group:" >&2
+                    echo "  sudo usermod -a -G video $HOST_USER" >&2
+                    ;;
+                /dev/snd/*)
+                    echo "You may need to add your user to the 'audio' group:" >&2
+                    echo "  sudo usermod -a -G audio $HOST_USER" >&2
+                    ;;
+            esac
+            echo "Then log out and log back in for the changes to take effect." >&2
         fi
     done
 
@@ -1807,6 +1874,54 @@ automatic_setup_home() {
         -e "USER=$HOST_USER"
     )
 
+    # Pass host group GIDs for display purposes when device access features are enabled
+    # These groups are already preserved by --group-add keep-groups for actual permissions,
+    # but creating them in the container improves UX by showing real group names instead of "nobody"
+    # This can be disabled with --no-create-groups
+    if [ "${ENABLE_GPU:-false}" = true ] || [ "${ENABLE_INPUT:-false}" = true ]; then
+        # Collect all relevant group GIDs that may be needed for device access
+        local group_gids=""
+
+        # Video group (for GPU access via /dev/dri)
+        if [ "${ENABLE_GPU:-false}" = true ]; then
+            local video_gid
+            video_gid=$(getent group video 2>/dev/null | cut -d: -f3)
+            if [ -n "$video_gid" ]; then
+                HOME_ARGS+=(-e "HOST_VIDEO_GID=$video_gid")
+                group_gids="${group_gids:+$group_gids,}video:$video_gid"
+            fi
+
+            # Render group (for GPU rendering via /dev/dri/renderD*)
+            local render_gid
+            render_gid=$(getent group render 2>/dev/null | cut -d: -f3)
+            if [ -n "$render_gid" ]; then
+                HOME_ARGS+=(-e "HOST_RENDER_GID=$render_gid")
+                group_gids="${group_gids:+$group_gids,}render:$render_gid"
+            fi
+        fi
+
+        # Input group (for input device access via /dev/input)
+        if [ "${ENABLE_INPUT:-false}" = true ]; then
+            local input_gid
+            input_gid=$(getent group input 2>/dev/null | cut -d: -f3)
+            if [ -n "$input_gid" ]; then
+                HOME_ARGS+=(-e "HOST_INPUT_GID=$input_gid")
+                group_gids="${group_gids:+$group_gids,}input:$input_gid"
+            fi
+        fi
+
+        # Store in label for recreate detection
+        if [ -n "$group_gids" ]; then
+            LABEL_ARGS+=(--label "cosy.host_groups=$group_gids")
+        fi
+
+        # Pass NO_CREATE_GROUPS flag to bootstrap script
+        if [ "${NO_CREATE_GROUPS:-false}" = true ]; then
+            HOME_ARGS+=(-e "NO_CREATE_GROUPS=true")
+            LABEL_ARGS+=(--label "cosy.no_create_groups=true")
+        fi
+    fi
+
     # Store sudo configuration in label for detection/recreation
     if [ "$ENABLE_SUDO" = true ]; then
         LABEL_ARGS+=(--label "cosy.sudo=true")
@@ -2256,6 +2371,11 @@ parse_container_args() {
                 shift
                 continue
                 ;;
+            --no-create-groups)
+                NO_CREATE_GROUPS=true
+                shift
+                continue
+                ;;
             --help|-h|help)
                 # Show context-aware help based on subcommand
                 if is_create_subcommand; then
@@ -2331,6 +2451,14 @@ setup_all_features() {
 
     automatic_setup_all
     passthrough_build_args
+
+    # Validate features after setup to check for access issues
+    for cap in "${FEATURES[@]}"; do
+        if type "feature_${cap}_validate" &>/dev/null 2>&1; then
+            # shellcheck disable=SC2086
+            feature_${cap}_validate
+        fi
+    done
 }
 
 # ==============================================================================
@@ -2447,6 +2575,49 @@ if [ "\${ENABLE_SUDO:-false}" = "true" ]; then
         mkdir -p /etc/sudoers.d
         echo "\$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cosy-user
         chmod 0440 /etc/sudoers.d/cosy-user
+    fi
+fi
+
+# Create supplementary groups for better UX when using device access features
+# Note: --group-add keep-groups already preserves group membership for actual permissions.
+# The kernel checks the real GID values in the process credentials for device access,
+# which works even when groups show as "nobody" (65534) due to unmapped GIDs.
+# We create these groups here purely to improve the user experience - so "id" and "ls -l"
+# show meaningful group names instead of "nobody". This is cosmetic only.
+#
+# This behavior can be disabled with the --no-create-groups flag.
+# We only create groups if the GID is not already in use to avoid conflicts.
+# If creation fails (GID conflict, read-only /etc, etc.), we silently continue.
+
+if [ "\${NO_CREATE_GROUPS:-false}" != "true" ]; then
+    # Video group (for --gpu flag, /dev/dri devices)
+    if [ -n "\${HOST_VIDEO_GID:-}" ]; then
+        # Only create if neither the GID nor the group name is already in use
+        if ! getent group "\$HOST_VIDEO_GID" >/dev/null 2>&1; then
+            if ! getent group video >/dev/null 2>&1; then
+                groupadd -g "\$HOST_VIDEO_GID" video $BS_STDERR || true
+            fi
+        fi
+    fi
+
+    # Render group (for --gpu flag, /dev/dri/renderD* devices)
+    if [ -n "\${HOST_RENDER_GID:-}" ]; then
+        # Only create if neither the GID nor the group name is already in use
+        if ! getent group "\$HOST_RENDER_GID" >/dev/null 2>&1; then
+            if ! getent group render >/dev/null 2>&1; then
+                groupadd -g "\$HOST_RENDER_GID" render $BS_STDERR || true
+            fi
+        fi
+    fi
+
+    # Input group (for --input flag, /dev/input devices)
+    if [ -n "\${HOST_INPUT_GID:-}" ]; then
+        # Only create if neither the GID nor the group name is already in use
+        if ! getent group "\$HOST_INPUT_GID" >/dev/null 2>&1; then
+            if ! getent group input >/dev/null 2>&1; then
+                groupadd -g "\$HOST_INPUT_GID" input $BS_STDERR || true
+            fi
+        fi
     fi
 fi
 BOOTSTRAP_EOF
@@ -2842,6 +3013,7 @@ Options:
   --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
   --network MODE                Network mode: default, none, or host
+  --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
   --podman                      Enable Podman socket access
   --read-only                   Mount container root filesystem as read-only
@@ -2878,6 +3050,7 @@ Options:
   --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
   --network MODE                Network mode: default, none, or host
+  --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
   --podman                      Enable Podman socket access
   --root                        Execute command as root user

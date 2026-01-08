@@ -181,6 +181,12 @@ Useful for gaming and input device testing.
 Network mode: \fBdefault\fR (isolated with internet), \fBnone\fR (no network),
 \fBhost\fR (use host network stack), or custom network name
 .TP
+.B \-\-no-create-groups
+Disable automatic group creation in the container.
+By default, cosy creates video/render/input groups in the container to improve UX when using \fB\-\-gpu\fR or \fB\-\-input\fR.
+This flag disables that behavior. Groups will show as "nobody" but permissions still work.
+See docs/GROUPS.md for details.
+.TP
 .B \-\-no-display
 Disable display forwarding (X11/Wayland). Display is enabled by default.
 .TP
@@ -218,6 +224,11 @@ Disable SELinux labeling (default)
 .B no-new-privileges
 Prevent privilege escalation
 .RE
+.TP
+.B \-\-sudo
+Enable passwordless sudo access for the container user.
+Creates a sudoers configuration that allows the user to run commands as root without a password.
+Requires sudo to be installed in the container image.
 .TP
 .B \-\-systemd[\fB=\fR\fIMODE\fR]
 Systemd mode: \fBtrue\fR (auto-detect, default), \fBfalse\fR (disabled), or \fBalways\fR (forced).

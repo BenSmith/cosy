@@ -299,6 +299,7 @@ Options that can be used with `create`, `enter`, and `run` commands. All options
 | `--image <image>`, `-i <image>` | `fedora:43`      | Base container image to use |
 | `--input` | disabled         | Enable input device access (joysticks, gamepads, keyboards, mice via `/dev/input`, `/dev/uinput`, `/dev/hidraw*`) |
 | `--network <mode>` | `default`        | Network mode: `default` (isolated), `none` (disabled), or `host` (shared) |
+| `--no-create-groups` | groups created   | Disable automatic group creation in container (groups show as "nobody" but permissions still work; see `docs/GROUPS.md`) |
 | `--no-display` | display enabled  | Disable display forwarding (X11/Wayland) |
 | `--podman` | disabled         | Enable Podman socket access (allows launching sibling containers) |
 | `--read-only` | disabled         | Mount container root filesystem as read-only |
