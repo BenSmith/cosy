@@ -2083,9 +2083,12 @@ automatic_setup_capabilities() {
     # Systemd requires additional capabilities
     # Check if systemd will actually be enabled (explicitly set OR auto-detected from image)
     local systemd_will_run=false
-    if [ "$SYSTEMD_EXPLICITLY_SET" = true ]; then
+    if [ "$SYSTEMD_MODE" = "always" ]; then
+        # Forced systemd mode (explicit --systemd=always or set by composite feature like --kms)
+        systemd_will_run=true
+    elif [ "$SYSTEMD_EXPLICITLY_SET" = true ]; then
         # User explicitly set --systemd, check if it's enabled
-        if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
+        if [ "$SYSTEMD_MODE" = "true" ]; then
             systemd_will_run=true
         fi
     elif [ "$SYSTEMD_MODE" = "true" ]; then
@@ -2737,6 +2740,56 @@ BOOTSTRAP_EOF
         echo "ln -sf /dev/null /etc/systemd/system/dbus-broker.service"
         echo "ln -sf /dev/null /etc/systemd/system/dbus.socket"
         echo "ln -sf /dev/null /etc/systemd/system/dbus.service"
+    fi
+
+    # Mask journald in systemd containers — its security sandbox requires caps
+    # (SYS_ADMIN, SYSLOG, etc.) that don't exist in the container's user namespace,
+    # causing exit code 218/CAPABILITIES. Instead, redirect all service output to
+    # PID 1's stdout which podman captures and writes to the host journal.
+    if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
+        echo ""
+        echo "# Mask journald (sandbox fails in containers)"
+        echo "mkdir -p /etc/systemd/system"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-journald.service"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-journald.socket"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-journal-flush.service"
+        echo ""
+        echo "# Route all service output through PID 1 to the host journal"
+        echo "mkdir -p /etc/systemd/system.conf.d"
+        echo "cat > /etc/systemd/system.conf.d/10-cosy-logging.conf <<'SYSCONF'"
+        echo "[Manager]"
+        echo "DefaultStandardOutput=inherit"
+        echo "DefaultStandardError=inherit"
+        echo "SYSCONF"
+        echo ""
+        echo "# Create XDG_RUNTIME_DIR on every boot (/run is tmpfs, wiped on restart)"
+        echo "cat > /etc/systemd/system/cosy-runtime-dir.service <<RTDIR"
+        echo "[Unit]"
+        echo "Description=Create XDG_RUNTIME_DIR for cosy user"
+        echo "DefaultDependencies=no"
+        echo "Before=basic.target"
+        echo ""
+        echo "[Service]"
+        echo "Type=oneshot"
+        echo "EnvironmentFile=/etc/cosy-user.env"
+        echo "ExecStart=/bin/sh -c 'mkdir -p /run/user/\${COSY_UID} && chown \${COSY_UID}:\${COSY_GID} /run/user/\${COSY_UID} && chmod 0700 /run/user/\${COSY_UID}'"
+        echo ""
+        echo "[Install]"
+        echo "WantedBy=basic.target"
+        echo "RTDIR"
+        echo "mkdir -p /etc/systemd/system/basic.target.wants"
+        echo "ln -sf /etc/systemd/system/cosy-runtime-dir.service /etc/systemd/system/basic.target.wants/cosy-runtime-dir.service"
+    fi
+
+    # Mask container udevd when using KMS — host udev database is bind-mounted
+    # read-only at /run/udev, so container udevd would conflict with it
+    if [ "$ENABLE_KMS" = true ]; then
+        echo ""
+        echo "# Mask udevd (KMS uses host udev database via /run/udev:ro)"
+        echo "mkdir -p /etc/systemd/system"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-udevd.service"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-udevd-control.socket"
+        echo "ln -sf /dev/null /etc/systemd/system/systemd-udevd-kernel.socket"
     fi
 
     # Append custom script if specified

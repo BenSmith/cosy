@@ -282,12 +282,9 @@ calling `setgroups()`, preserving device access.
 **wlroots-based compositors** must set `WLR_BACKENDS=drm,libinput` — omitting
 `libinput` results in a display with no input.
 
-**Logging** — journald fails in containers (218/CAPABILITIES). Use file-based
-logging instead:
-```ini
-StandardOutput=file:/var/log/my-compositor.log
-StandardError=file:/var/log/my-compositor.log
-```
+**Logging** — cosy automatically masks journald and sets `DefaultStandardOutput=inherit`
+in systemd containers, so all service logs flow through PID 1 to the host journal via
+podman. No per-service configuration needed.
 
 See `containers/desktop-labwc-kms/` for a complete working example.
 
@@ -349,6 +346,11 @@ cosy run --root --image localhost/fedora-systemd:43 --systemd=always systemd-con
 - `--systemd=always` - Force systemd mode (recommended when using /usr/bin/init)
 - `--systemd=true` - Auto-detect (default, enables systemd when CMD is /usr/bin/init)
 - `--systemd=false` - Disable systemd mode
+
+**What cosy handles automatically in systemd containers:**
+- Masks journald (its security sandbox fails in containers)
+- Sets `DefaultStandardOutput=inherit` so all service logs flow to the host journal
+- Creates `XDG_RUNTIME_DIR` (`/run/user/$UID`) on every boot via a oneshot service
 
 **How it works:**
 - `--systemd` flag configures Podman to set up the container for systemd

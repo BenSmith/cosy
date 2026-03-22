@@ -512,6 +512,49 @@ teardown() {
     assert_output_contains "DBUS_SESSION_BUS_ADDRESS"
 }
 
+@test "systemd=always masks journald via symlinks" {
+    # journald's security sandbox fails in containers (218/CAPABILITIES)
+    # cosy bootstrap should mask it automatically in systemd containers
+
+    run "${COSY_SCRIPT}" create --systemd=always --cmd "/sbin/init" "$TEST_CONTAINER"
+    assert_success
+
+    podman start "$TEST_CONTAINER"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journald.service
+    assert_success
+    assert_output_contains "/dev/null"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journald.socket
+    assert_success
+    assert_output_contains "/dev/null"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journal-flush.service
+    assert_success
+    assert_output_contains "/dev/null"
+}
+
+@test "KMS masks udevd via symlinks" {
+    # KMS mounts /run/udev:ro from host — container udevd would conflict
+
+    run "${COSY_SCRIPT}" create --kms --cmd "/sbin/init" "$TEST_CONTAINER"
+    assert_success
+
+    podman start "$TEST_CONTAINER"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd.service
+    assert_success
+    assert_output_contains "/dev/null"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd-control.socket
+    assert_success
+    assert_output_contains "/dev/null"
+
+    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd-kernel.socket
+    assert_success
+    assert_output_contains "/dev/null"
+}
+
 @test "create with --podman flag" {
     # Check if podman socket is available
     if [ ! -S "/run/user/$(id -u)/podman/podman.sock" ]; then
