@@ -47,6 +47,9 @@ COSY_GPU_DEFAULT="${COSY_GPU:-false}"
 # Input device configuration
 COSY_INPUT_DEFAULT="${COSY_INPUT:-false}"
 
+# KMS direct display configuration
+COSY_KMS_DEFAULT="${COSY_KMS:-false}"
+
 # Network configuration
 COSY_NETWORK_DEFAULT="${COSY_NETWORK:-default}"
 
@@ -572,6 +575,7 @@ build_features_json() {
     json+="\"dbus_system\":${ENABLE_DBUS_SYSTEM:-false},"
     json+="\"display\":${ENABLE_DISPLAY:-true},"
     json+="\"gpu\":${ENABLE_GPU:-false},"
+    json+="\"kms\":${ENABLE_KMS:-false},"
 
     if [ "${DISABLE_NETWORK:-false}" = true ]; then
         json+="\"network\":\"none\","
@@ -635,7 +639,11 @@ podman() {
 # FEATURE MODULE INTERFACE
 # ==============================================================================
 
-FEATURES=(a11y audio dbus dbus_system display gpu input podman)
+FEATURES=(a11y audio dbus dbus_system display gpu input kms podman)
+
+# Setup order matters: composite features (kms) set flags that downstream
+# features (display, gpu, input) read. KMS disables display and enables gpu/input.
+FEATURES_SETUP_ORDER=(a11y audio dbus dbus_system kms display gpu input podman)
 
 # Standard interface that each feature module must implement:
 #
@@ -1174,6 +1182,93 @@ feature_input_validate() {
         echo "You may need to add your user to the 'input' group:" >&2
         echo "  sudo usermod -a -G input $HOST_USER" >&2
         echo "Then log out and log back in for the changes to take effect." >&2
+    fi
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# FEATURE: KMS (Direct Display Output)
+# ------------------------------------------------------------------------------
+# Enables DRM/KMS framebuffer access for compositors that drive the physical
+# display directly. Implies --gpu, --input, --no-display, --network host, and
+# --systemd=always. Mounts host udev database and adds SYS_NICE capability.
+# ------------------------------------------------------------------------------
+
+feature_kms_detect() {
+    local container="$1"
+
+    local kms_label
+    kms_label=$(get_cached_label "$container" "cosy.kms")
+
+    if [ "$kms_label" = "true" ]; then
+        ENABLE_KMS=true
+    else
+        ENABLE_KMS=false
+    fi
+}
+
+feature_kms_parse() {
+    case "$1" in
+        --kms)
+            ENABLE_KMS=true
+            PARSE_CONSUMED=1
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+feature_kms_setup() {
+    KMS_ARGS=()
+    if [ "$ENABLE_KMS" = true ]; then
+        # KMS implies these features
+        ENABLE_GPU=true
+        ENABLE_INPUT=true
+        ENABLE_DISPLAY=false
+        ENABLE_HOST_NETWORK=true
+        DISABLE_NETWORK=false
+        CUSTOM_NETWORK=""
+        SYSTEMD_MODE="always"
+
+        # Host seatd socket for DRM master and VT management
+        KMS_ARGS+=(-v /run/seatd.sock:/run/seatd.sock:rw)
+
+        # Host udev database for device enumeration (read by libudev)
+        KMS_ARGS+=(-v /run/udev:/run/udev:ro)
+
+        # Compositor scheduling priority
+        KMS_ARGS+=(--cap-add SYS_NICE)
+
+
+        # Store in label for detection
+        LABEL_ARGS+=(--label "cosy.kms=true")
+    fi
+}
+
+feature_kms_validate() {
+    if [ "$ENABLE_KMS" != true ]; then
+        return 0
+    fi
+
+    # Check for host seatd socket
+    if [ ! -S /run/seatd.sock ]; then
+        echo "Warning: --kms specified but /run/seatd.sock not found" >&2
+        echo "Host seatd must be running: sudo systemctl enable --now seatd" >&2
+    fi
+
+    # Check for DRM card devices (not just render nodes)
+    local has_card=false
+    for device in /dev/dri/card*; do
+        if [ -e "$device" ]; then
+            has_card=true
+            break
+        fi
+    done
+
+    if [ "$has_card" = false ]; then
+        echo "Warning: --kms specified but no DRM card devices found in /dev/dri/" >&2
+        echo "KMS output requires a physical display connected to a GPU." >&2
     fi
 
     return 0
@@ -2431,6 +2526,7 @@ setup_all_features() {
     GPU_ARGS=()
     HOME_ARGS=()
     INPUT_ARGS=()
+    KMS_ARGS=()
     INTERCEPTED_ARGS=()
     NETWORK_ARGS=()
     PODMAN_SOCKET_ARGS=()
@@ -2438,7 +2534,7 @@ setup_all_features() {
     TMPFS_ARGS=()
     USER_NAMESPACE_ARGS=()
 
-    for cap in "${FEATURES[@]}"; do
+    for cap in "${FEATURES_SETUP_ORDER[@]}"; do
         if type "feature_${cap}_setup" &>/dev/null 2>&1; then
             # shellcheck disable=SC2086
             feature_${cap}_setup
@@ -2578,6 +2674,15 @@ if [ "\${ENABLE_SUDO:-false}" = "true" ]; then
     fi
 fi
 
+# Write user identity for systemd services (e.g. KMS compositors that need
+# to drop privileges from root while preserving keep-groups)
+cat > /etc/cosy-user.env <<USERENV_EOF
+COSY_UID=\$TARGET_UID
+COSY_GID=\$TARGET_GID
+COSY_USER=\$TARGET_USER
+XDG_RUNTIME_DIR=/run/user/\$TARGET_UID
+USERENV_EOF
+
 # Create supplementary groups for better UX when using device access features
 # Note: --group-add keep-groups already preserves group membership for actual permissions.
 # The kernel checks the real GID values in the process credentials for device access,
@@ -2693,6 +2798,7 @@ build_container_create_flags() {
     flags+=("${GPU_ARGS[@]}")
     flags+=("${HOME_ARGS[@]}")
     flags+=("${INPUT_ARGS[@]}")
+    flags+=("${KMS_ARGS[@]}")
     flags+=("${INTERCEPTED_ARGS[@]}")
     flags+=("${LABEL_ARGS[@]}")
     flags+=("${NETWORK_ARGS[@]}")
@@ -2756,6 +2862,7 @@ run_podman_create() {
         for arg in "${GPU_ARGS[@]}"; do echo "    $arg \\"; done
         for arg in "${HOME_ARGS[@]}"; do echo "    $arg \\"; done
         for arg in "${INPUT_ARGS[@]}"; do echo "    $arg \\"; done
+        for arg in "${KMS_ARGS[@]}"; do echo "    $arg \\"; done
         for arg in "${INTERCEPTED_ARGS[@]}"; do echo "    $arg \\"; done
         for arg in "${LABEL_ARGS[@]}"; do echo "    $arg \\"; done
         for arg in "${NETWORK_ARGS[@]}"; do echo "    $arg \\"; done
@@ -2790,6 +2897,7 @@ run_podman_create() {
             "${GPU_ARGS[@]}" \
             "${HOME_ARGS[@]}" \
             "${INPUT_ARGS[@]}" \
+            "${KMS_ARGS[@]}" \
             "${INTERCEPTED_ARGS[@]}" \
             "${LABEL_ARGS[@]}" \
             "${NETWORK_ARGS[@]}" \
@@ -2921,6 +3029,7 @@ init_container_vars() {
     ENABLE_DISPLAY="${COSY_DISPLAY_DEFAULT}"
     ENABLE_GPU="${COSY_GPU_DEFAULT}"
     ENABLE_INPUT="${COSY_INPUT_DEFAULT}"
+    ENABLE_KMS="${COSY_KMS_DEFAULT}"
     ENABLE_PODMAN="${COSY_PODMAN_DEFAULT}"
 
     HOST_GID=$(id -g)
@@ -3012,6 +3121,7 @@ Options:
   --help, -h                    Show this help message
   --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
+  --kms                         Enable KMS direct display (implies --gpu --input --systemd=always)
   --network MODE                Network mode: default, none, or host
   --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
@@ -3049,6 +3159,7 @@ Options:
   --help, -h                    Show this help message
   --image IMAGE, -i IMAGE       Base container image (default: $COSY_DEFAULT_IMAGE)
   --input                       Enable input device access (joysticks, gamepads, etc.)
+  --kms                         Enable KMS direct display (implies --gpu --input --systemd=always)
   --network MODE                Network mode: default, none, or host
   --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
@@ -3110,6 +3221,7 @@ Options:
   --gpu                         Enable GPU access
   --help, -h                    Show this help message
   --input                       Enable input device access
+  --kms                         Enable KMS direct display
   --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
   --podman                      Enable Podman socket access
@@ -3150,6 +3262,7 @@ Options:
   --gpu                         Enable GPU access
   --help, -h                    Show this help message
   --input                       Enable input device access
+  --kms                         Enable KMS direct display
   --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
   --podman                      Enable Podman socket access
@@ -3501,6 +3614,10 @@ handle_list() {
 
             if [ "$(get_cached_label "$name" "cosy.input")" = "true" ]; then
                 caps+=("input")
+            fi
+
+            if [ "$(get_cached_label "$name" "cosy.kms")" = "true" ]; then
+                caps+=("kms")
             fi
 
             local systemd_label
@@ -6106,11 +6223,11 @@ _cosy() {
                     COMP_CWORD=${#COMP_WORDS[@]}-1
 
                     # Add cosy-specific flags to what podman suggested
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo --root"
+                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo --root"
                     COMPREPLY+=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 else
                     # Podman completion not available, just show cosy flags
-                    local cosy_flags="--audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo --root"
+                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo --root"
                     COMPREPLY=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 fi
             else
@@ -6166,7 +6283,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + recreate-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo"
+                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6177,7 +6294,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + clone-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --dbus --dbus-system --a11y --podman --no-display --sudo"
+                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6272,6 +6389,7 @@ _cosy() {
                         '--gpu[Enable GPU passthrough]' \
                         '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input device passthrough]' \
+                        '--kms[Enable KMS direct display]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
                         '*:name:_cosy_homes'
@@ -6291,6 +6409,7 @@ _cosy() {
                         '--gpu[Enable GPU passthrough]' \
                         '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input device passthrough]' \
+                        '--kms[Enable KMS direct display]' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
                         '--root[Run as root user]'
@@ -6325,6 +6444,7 @@ _cosy() {
                         '--gpu[Enable GPU]' \
                         '--sudo[Enable passwordless sudo access]' \
                         '--input[Enable input devices]' \
+                        '--kms[Enable KMS direct display]' \
                         '--network[Network mode]:mode:(default host none)' \
                         '--no-display[Disable display]' \
                         '--podman[Enable Podman socket]' \
@@ -6432,6 +6552,7 @@ Options (for create/run):
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
   --input              Enable input device passthrough (joysticks, gamepads, etc.)
+  --kms                Enable KMS direct display (implies --gpu --input --systemd=always)
   --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
   --podman             Enable Podman socket passthrough
@@ -6507,6 +6628,7 @@ Options (for create/run):
   --dbus-system        Enable D-Bus system bus
   --gpu                Enable GPU passthrough
   --input              Enable input device passthrough (joysticks, gamepads, etc.)
+  --kms                Enable KMS direct display (implies --gpu --input --systemd=always)
   --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
   --podman             Enable Podman socket passthrough

@@ -177,6 +177,13 @@ Enable input device access for joysticks, gamepads, keyboards, mice.
 Provides access to /dev/input, /dev/uinput, /dev/hidraw*.
 Useful for gaming and input device testing.
 .TP
+.B \-\-kms
+Enable KMS direct display output for running a Wayland compositor on the physical
+framebuffer. Implies \-\-gpu, \-\-input, \-\-no\-display, \-\-network host, and
+\-\-systemd=always. Mounts the host seatd socket (/run/seatd.sock) for DRM master
+management and VT switching, the host udev database (/run/udev) for device enumeration,
+and adds SYS_NICE capability. Requires host seatd to be running.
+.TP
 .B \-\-network \fIMODE\fR
 Network mode: \fBdefault\fR (isolated with internet), \fBnone\fR (no network),
 \fBhost\fR (use host network stack), or custom network name
@@ -296,6 +303,9 @@ Default base image (default: fedora:43)
 .B COSY_INPUT
 Enable input device access (default: false)
 .TP
+.B COSY_KMS
+Enable KMS direct display (default: false)
+.TP
 .B COSY_LOG
 Enable logging to file (default: false)
 .TP
@@ -328,6 +338,8 @@ Base containers get only 5 capabilities: CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SE
 With \-\-systemd, 6 more are added: FSETID, KILL, NET_BIND_SERVICE, SETFCAP, SETPCAP, SYS_CHROOT
 .PP
 With custom networks, NET_ADMIN and NET_RAW are added
+.PP
+With \-\-kms, SYS_NICE is added for compositor scheduling priority
 .PP
 GUI features (audio, GPU, D-Bus, display) require no additional capabilities beyond the base set.
 .PP
@@ -483,6 +495,18 @@ cosy network reset streaming-app
 cosy network capture browser /tmp/traffic.pcap
 # (use app, press Ctrl+C)
 wireshark /tmp/traffic.pcap
+.fi
+.RE
+.SS KMS Desktop
+.PP
+.RS
+.nf
+# Launch a desktop compositor on the physical display
+cosy create \-\-kms \-\-audio \-\-image localhost/desktop-labwc-kms:latest my-desktop
+cosy enter my-desktop
+
+# Stop the desktop
+cosy stop my-desktop
 .fi
 .RE
 .SS Systemd Services

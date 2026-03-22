@@ -10,6 +10,7 @@ Detailed examples for common cosy use cases.
 - [Development Environment (VSCode with Dev Containers)](#development-environment-vscode-with-dev-containers)
 - [Isolated Application (No Network)](#isolated-application-no-network)
 - [Desktop Integration](#desktop-integration)
+- [KMS Desktop (Physical Display)](#kms-desktop-physical-display)
 - [Running Systemd Services](#running-systemd-services)
 - [Custom Bootstrap Scripts](#custom-bootstrap-scripts)
 - [Managing Multiple Containers](#managing-multiple-containers)
@@ -181,6 +182,114 @@ Everything after `--` becomes the command and its arguments.
 Desktop entries are stored in:
 - Desktop file: `~/.local/share/applications/cosy-<container>.desktop`
 - Metadata: `~/.local/share/cosy/<container>/.desktop-metadata`
+
+## KMS Desktop (Physical Display)
+
+KMS (Kernel Mode Setting) gives a container direct access to the GPU and display hardware. Use this when you're sitting at the computer and want a full desktop environment — the container drives the monitor, keyboard, and mouse directly, like `startx` in the old days.
+
+### Prerequisites
+
+The host needs `seatd` running to manage DRM master access and VT switching:
+
+```bash
+sudo systemctl enable --now seatd
+```
+
+Your user needs to be in the `seat`, `input`, `video`, and `render` groups:
+
+```bash
+sudo usermod -aG seat,input,video,render $USER
+# Log out and back in
+```
+
+### Launch a Desktop
+
+```bash
+# Build a KMS desktop image (labwc example)
+cd containers/desktop-labwc-kms && ./build.sh
+
+# Create and enter the desktop container
+cosy create --kms --audio --sudo --image localhost/desktop-labwc-kms:latest my-desktop
+cosy enter my-desktop
+```
+
+The container boots systemd, which starts the compositor as a service. You're at a desktop.
+
+### Multiple Desktops
+
+Only one KMS container can use the display at a time (there's only one screen), but you can have multiple desktop containers and switch between them:
+
+```bash
+# Lightweight desktop for coding
+cosy create --kms --audio --sudo --image localhost/desktop-labwc-kms:latest coding-desktop
+
+# Flashy desktop with 3D effects
+cosy create --kms --audio --sudo --image localhost/desktop-wayfire-kms:latest gaming-desktop
+
+# Stop one, start the other
+cosy stop coding-desktop
+cosy enter gaming-desktop
+```
+
+### What --kms Does
+
+The `--kms` flag is a composite that automatically enables:
+- `--gpu` - DRM/KMS and render device access via `/dev/dri`
+- `--input` - Keyboard, mouse, gamepad access via `/dev/input`
+- `--no-display` - No X11/Wayland forwarding (output goes to the framebuffer)
+- `--network host` - Host networking (no isolation needed)
+- `--systemd=always` - systemd as PID 1 (manages compositor, D-Bus, PipeWire)
+- Host seatd socket mount (`/run/seatd.sock`) for DRM master management
+- Host udev database mount (`/run/udev`) for device enumeration
+- `SYS_NICE` capability for compositor scheduling priority
+
+### Building a KMS Container Image
+
+KMS container images need specific packages and systemd service configuration
+to work with cosy's user namespace model.
+
+**Required packages** (Fedora):
+- `systemd` - PID 1
+- `systemd-udev` - udev rules/hwdb (libudev reads host's `/run/udev` database)
+- `libinput` - input device handling
+- `libevdev` - low-level input device library
+- `libseat` - seat management (talks to host seatd)
+- `dbus-daemon` - session bus for the compositor
+- Mesa drivers (`mesa-dri-drivers`, `mesa-libEGL`, `mesa-libgbm`, etc.)
+
+**Mask systemd-udevd** in the image to prevent it from conflicting with the
+host's read-only udev database mount:
+```dockerfile
+RUN systemctl enable my-compositor && \
+    systemctl mask systemd-udevd
+```
+
+**Compositor service pattern** — the service must use `setpriv` to drop from
+container root to the bootstrap user while preserving device group access.
+cosy's bootstrap writes `/etc/cosy-user.env` with the user's UID/GID:
+```ini
+[Service]
+EnvironmentFile=/etc/cosy-user.env
+ExecStartPre=/bin/sh -c 'mkdir -p /run/user/${COSY_UID} && chown ${COSY_UID}:${COSY_GID} /run/user/${COSY_UID} && chmod 0700 /run/user/${COSY_UID}'
+ExecStart=/usr/bin/setpriv --reuid=${COSY_UID} --regid=${COSY_GID} --keep-groups -- /usr/bin/dbus-run-session /usr/bin/my-compositor
+```
+
+**Why setpriv?** systemd's `User=` directive calls `setgroups()`, which wipes
+the host device GIDs (video, render, input, seat) that cosy passes via
+`--group-add keep-groups`. `setpriv --keep-groups` drops privileges without
+calling `setgroups()`, preserving device access.
+
+**wlroots-based compositors** must set `WLR_BACKENDS=drm,libinput` — omitting
+`libinput` results in a display with no input.
+
+**Logging** — journald fails in containers (218/CAPABILITIES). Use file-based
+logging instead:
+```ini
+StandardOutput=file:/var/log/my-compositor.log
+StandardError=file:/var/log/my-compositor.log
+```
+
+See `containers/desktop-labwc-kms/` for a complete working example.
 
 ## Running Systemd Services
 

@@ -78,9 +78,9 @@ load '../helpers/common'
 # === Tmpfs Detection Tests ===
 
 @test "tmpfs: no flag + systemd CMD → skips /tmp (auto-detect)" {
-    # Skip in CI - requires localhost/fedora-systemd:43 image
-    if [ "${CI:-false}" = "true" ]; then
-        skip "Systemd image detection tests require pre-built systemd image (not available in CI)"
+    # Requires localhost/fedora-systemd:43 image
+    if [ "${CI:-false}" = "true" ] || ! podman image exists localhost/fedora-systemd:43 2>/dev/null; then
+        skip "Requires pre-built systemd image (localhost/fedora-systemd:43)"
     fi
 
     run "${COSY_SCRIPT}" --dry-run create --image localhost/fedora-systemd:43 test-container
@@ -115,9 +115,9 @@ load '../helpers/common'
 }
 
 @test "tmpfs: systemd=true + systemd CMD → skips /tmp" {
-    # Skip in CI - requires localhost/fedora-systemd:43 image
-    if [ "${CI:-false}" = "true" ]; then
-        skip "Systemd image detection tests require pre-built systemd image (not available in CI)"
+    # Requires localhost/fedora-systemd:43 image
+    if [ "${CI:-false}" = "true" ] || ! podman image exists localhost/fedora-systemd:43 2>/dev/null; then
+        skip "Requires pre-built systemd image (localhost/fedora-systemd:43)"
     fi
 
     run "${COSY_SCRIPT}" --dry-run create --systemd=true --image localhost/fedora-systemd:43 test-container

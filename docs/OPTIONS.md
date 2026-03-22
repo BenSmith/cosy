@@ -71,6 +71,7 @@ Cosy automatically detects features by examining the container configuration:
 - **--gpu** - Detected by `cosy.gpu` label
 - **--sudo** - Detected by `cosy.sudo` label (passwordless sudo access)
 - **--input** - Detected by `cosy.input` label (input devices: `/dev/input`, `/dev/uinput`, `/dev/hidraw*`)
+- **--kms** - Detected by `cosy.kms` label (full desktop on the physical display via Kernel Mode Setting)
 - **--network** - Read from `NetworkMode` (normalized: `slirp4netns`/`pasta`/`bridge` → `default`)
 - **--podman** - Detected by `cosy.podman` label
 - **--read-only** - Read from `ReadonlyRootfs` flag
@@ -246,6 +247,7 @@ All standard creation options (`--audio`, `--gpu`, `--network`, `-v`, etc.) can 
 - ✅ GPU (`--gpu`)
 - ✅ Sudo access (`--sudo`)
 - ✅ Input devices (`--input`)
+- ✅ KMS physical display (`--kms`)
 - ✅ Network mode (`--network default|none|host`)
 - ✅ Podman socket (`--podman`)
 - ✅ Security options (`--read-only`, `--tmpfs`, `--security-opt`)
@@ -298,6 +300,7 @@ Options that can be used with `create`, `enter`, and `run` commands. All options
 | `--sudo` | disabled         | Enable passwordless sudo access for the container user |
 | `--image <image>`, `-i <image>` | `fedora:43`      | Base container image to use |
 | `--input` | disabled         | Enable input device access (joysticks, gamepads, keyboards, mice via `/dev/input`, `/dev/uinput`, `/dev/hidraw*`) |
+| `--kms` | disabled         | Enable KMS (Kernel Mode Setting) for a full desktop environment on the physical display (implies `--gpu`, `--input`, `--no-display`, `--network host`, `--systemd=always`; mounts host seatd socket and udev) |
 | `--network <mode>` | `default`        | Network mode: `default` (isolated), `none` (disabled), or `host` (shared) |
 | `--no-create-groups` | groups created   | Disable automatic group creation in container (groups show as "nobody" but permissions still work; see `docs/GROUPS.md`) |
 | `--no-display` | display enabled  | Disable display forwarding (X11/Wayland) |
@@ -406,6 +409,17 @@ cosy create --input --gpu --audio gaming-setup
 cosy create --input --dbus input-tester
 ```
 Provides access to `/dev/input` (joysticks, gamepads, keyboards, mice), `/dev/uinput` (virtual input device creation), and `/dev/hidraw*` (raw HID device access). Useful for gaming, input device testing, or applications that need direct hardware access. Note: Bluetooth device pairing requires `--dbus-system` and `/dev/rfkill` access (paired devices will appear in `/dev/input`).
+
+**KMS (Kernel Mode Setting) — Physical Display:**
+```bash
+# Run a full desktop on the physical monitor, keyboard, and mouse
+cosy create --kms --audio --sudo --image localhost/desktop-labwc-kms:latest my-desktop
+cosy enter my-desktop
+
+# With Wayfire (3D effects)
+cosy create --kms --audio --sudo --image localhost/desktop-wayfire-kms:latest my-wayfire
+```
+Use `--kms` when you're sitting at the computer and want a containerized desktop environment on the physical screen. The container gets direct access to the GPU, display, keyboard, and mouse via KMS (Kernel Mode Setting) — the same mechanism the Linux kernel uses to drive displays. Requires host `seatd` to be running (`sudo systemctl enable --now seatd`) and the user in the `seat`, `input`, `video`, and `render` groups. Only one KMS container can use the display at a time. Automatically implies `--gpu`, `--input`, `--no-display`, `--network host`, and `--systemd=always`. Mounts `/run/seatd.sock` and `/run/udev` (read-only). Adds `SYS_NICE` capability for compositor scheduling. The bootstrap writes `/etc/cosy-user.env` with the user's UID/GID for use by compositor services (see `docs/EXAMPLES.md` for the service file pattern).
 
 **Image:**
 ```bash
@@ -646,6 +660,7 @@ Set defaults for container options and cosy behavior. CLI flags override environ
 | `COSY_SUDO` | `false`                        | Enable passwordless sudo access by default |
 | `COSY_HOMES_DIR` | `~/.local/share/cosy`          | Container homes directory                                               |
 | `COSY_INPUT` | `false`                        | Enable input device access by default (joysticks, gamepads, etc.)      |
+| `COSY_KMS` | `false`                        | Enable KMS (physical display) by default (implies gpu, input, systemd) |
 | `COSY_IMAGE` | `fedora:43`                    | Default base image for containers                                       |
 | `COSY_LOG` | `false`                        | Enable logging to file                                                  |
 | `COSY_LOG_FILE` | `~/.local/share/cosy/cosy.log` | Log file path (when `COSY_LOG=true`)                                    |
