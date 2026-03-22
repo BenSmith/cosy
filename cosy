@@ -1747,8 +1747,11 @@ INTERCEPTED_PARSERS=(
 # Setup functions for intercepted flags that need podman args
 intercepted_systemd_setup() {
     SYSTEMD_ARGS=()
-    # Only pass --systemd to podman if user explicitly set it
-    if [ "$SYSTEMD_EXPLICITLY_SET" = true ]; then
+    if [ "$SYSTEMD_MODE" = "always" ]; then
+        # Forced systemd mode (explicit --systemd=always or set by composite feature like --kms)
+        SYSTEMD_ARGS+=(--systemd=always)
+    elif [ "$SYSTEMD_EXPLICITLY_SET" = true ]; then
+        # User explicitly set --systemd flag
         if [ -n "$SYSTEMD_MODE" ] && [ "$SYSTEMD_MODE" != "false" ]; then
             SYSTEMD_ARGS+=(--systemd="$SYSTEMD_MODE")
         elif [ "$SYSTEMD_MODE" = "false" ]; then
@@ -2120,22 +2123,12 @@ automatic_setup_capabilities() {
 }
 
 automatic_setup_display() {
-    # Display is already handled by display feature module
-    # This function is a no-op for consistency
+    # Handled by display feature module
     true
 }
 
-# automatic_setup_bootstrap - Placeholder for bootstrap setup
-#
-# Returns:
-#   0 always
-#
-# Notes:
-#   Bootstrap script is created and executed by run_podman_create
-#   This function exists for consistency but performs no action
 automatic_setup_bootstrap() {
-    # Bootstrap script is created and executed after container creation
-    # This function is a no-op - actual bootstrap handled in run_podman_create
+    # Handled by run_podman_create after container starts
     true
 }
 
@@ -2561,11 +2554,6 @@ setup_all_features() {
 }
 
 # ==============================================================================
-# PRE-START CONFIG (written to stopped container via podman cp)
-# ==============================================================================
-
-
-# ==============================================================================
 # BOOTSTRAP SCRIPT CREATION
 # ==============================================================================
 
@@ -2639,7 +2627,7 @@ chown -R "\$TARGET_UID:\$TARGET_GID" "\$TARGET_HOME" $BS_STDERR || true
 chown "\$TARGET_UID:\$TARGET_GID" "/run/user/\$TARGET_UID"
 chmod 0700 "/run/user/\$TARGET_UID"
 
-# Fix podman socket directory ownership if it exists
+# Ensure podman socket directory ownership matches user
 if [ -d "/run/user/\$TARGET_UID/podman" ]; then
     chown "\$TARGET_UID:\$TARGET_GID" "/run/user/\$TARGET_UID/podman"
 fi
@@ -2749,24 +2737,31 @@ BOOTSTRAP_EOF
         echo "ln -sf /dev/null /etc/systemd/system/dbus.service"
     fi
 
-    # Mask journald in systemd containers — its security sandbox requires caps
-    # (SYS_ADMIN, SYSLOG, etc.) that don't exist in the container's user namespace.
-    # Note: symlinks can't be podman-cp'd rootless, so masks must be in bootstrap.
+    # journald's security sandbox requires caps (SYS_ADMIN, SYSLOG, etc.) that don't
+    # exist in the container's user namespace. Clear all sandbox directives via drop-in
+    # so journald runs with whatever caps the container has.
     if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
         echo ""
-        echo "# Mask journald (sandbox fails in containers)"
-        echo "mkdir -p /etc/systemd/system"
-        echo "ln -sf /dev/null /etc/systemd/system/systemd-journald.service"
-        echo "ln -sf /dev/null /etc/systemd/system/systemd-journald.socket"
-        echo "ln -sf /dev/null /etc/systemd/system/systemd-journal-flush.service"
-        echo ""
-        echo "# Route all service output through PID 1 to the host journal"
-        echo "mkdir -p /etc/systemd/system.conf.d"
-        echo "cat > /etc/systemd/system.conf.d/10-cosy-logging.conf <<'SYSCONF'"
-        echo "[Manager]"
-        echo "DefaultStandardOutput=inherit"
-        echo "DefaultStandardError=inherit"
-        echo "SYSCONF"
+        echo "# Clear journald sandbox directives for container use"
+        echo "rm -f /etc/systemd/system/systemd-journald.service"
+        echo "rm -f /etc/systemd/system/systemd-journald.socket"
+        echo "rm -f /etc/systemd/system/systemd-journal-flush.service"
+        echo "mkdir -p /etc/systemd/system/systemd-journald.service.d"
+        echo "cat > /etc/systemd/system/systemd-journald.service.d/10-cosy-container.conf <<'JRNL'"
+        echo "[Service]"
+        echo "CapabilityBoundingSet="
+        echo "IPAddressDeny="
+        echo "LockPersonality=no"
+        echo "MemoryDenyWriteExecute=no"
+        echo "NoNewPrivileges=no"
+        echo "ProtectClock=no"
+        echo "RestrictAddressFamilies="
+        echo "RestrictNamespaces=no"
+        echo "RestrictRealtime=no"
+        echo "RestrictSUIDSGID=no"
+        echo "SystemCallArchitectures="
+        echo "SystemCallFilter="
+        echo "JRNL"
         echo ""
         echo "# Create XDG_RUNTIME_DIR on every boot (/run is tmpfs, wiped on restart)"
         echo "cat > /etc/systemd/system/cosy-runtime-dir.service <<'RTDIR'"
@@ -3005,8 +3000,8 @@ run_podman_create() {
             /bin/sh -c "$BOOTSTRAP_SCRIPT"
 
         # Systemd containers: bootstrap writes configs that systemd needs (env file,
-        # service units, masks). Reload and restart failed units now that everything
-        # is in place. Services fail on initial boot because bootstrap hadn't run yet.
+        # service units, drop-ins). Reload and restart any units that failed before
+        # bootstrap had run.
         if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
             podman exec --user root "$COSY_CONTAINER_NAME" \
                 /bin/sh -c '
@@ -5760,16 +5755,13 @@ handle_network_capture() {
     echo "Press Ctrl+C to stop capture"
     echo ""
 
-    # Set up trap to show summary on exit and fix file ownership
-    # Inside podman unshare, UID 0 maps to the host user, so chown to 0:0
+    # Trap: show summary on exit and restore file ownership (podman unshare maps UID 0 to host user)
     trap 'echo ""; echo "Capture stopped"; podman unshare chown 0:0 "$output_file" 2>/dev/null || true; echo "Packets saved to: $output_file"; exit 0' INT TERM
 
     # Run tcpdump from host in container's network namespace
     run_in_container_netns "$container" tcpdump -i any -w "$output_file" 2>/dev/null
 
-    # If we get here without interrupt, tcpdump exited (shouldn't happen normally)
-    # Fix ownership of the output file (it was created in podman unshare namespace)
-    # Inside podman unshare, UID 0 maps to the host user
+    # tcpdump exited without interrupt — restore file ownership
     podman unshare chown 0:0 "$output_file" 2>/dev/null || true
     echo "Capture complete: $output_file"
 }

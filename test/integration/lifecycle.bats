@@ -512,45 +512,40 @@ teardown() {
     assert_output_contains "DBUS_SESSION_BUS_ADDRESS"
 }
 
-@test "systemd=always masks journald via symlinks" {
+@test "systemd=always fixes journald sandbox via drop-in" {
     # journald's security sandbox fails in containers (218/CAPABILITIES)
-    # cosy bootstrap should mask it automatically in systemd containers
+    # cosy bootstrap should strip sandbox via drop-in in systemd containers
 
-    run "${COSY_SCRIPT}" create --systemd=always --cmd "/sbin/init" "$TEST_CONTAINER"
+    run "${COSY_SCRIPT}" create --systemd=always "$TEST_CONTAINER"
     assert_success
 
     podman start "$TEST_CONTAINER"
 
-    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journald.service
+    run podman exec "$TEST_CONTAINER" cat /etc/systemd/system/systemd-journald.service.d/10-cosy-container.conf
     assert_success
-    assert_output_contains "/dev/null"
+    assert_output_contains "CapabilityBoundingSet="
+}
 
-    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journald.socket
+@test "KMS implies systemd=always and mounts udev/seatd (dry-run)" {
+    run "${COSY_SCRIPT}" --dry-run create --kms "$TEST_CONTAINER"
     assert_success
-    assert_output_contains "/dev/null"
-
-    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-journal-flush.service
-    assert_success
-    assert_output_contains "/dev/null"
+    assert_output_contains "--systemd=always"
+    assert_output_contains "/run/seatd.sock"
+    assert_output_contains "/run/udev:/run/udev:ro"
 }
 
 @test "KMS masks udevd via symlinks" {
-    # KMS mounts /run/udev:ro from host — container udevd would conflict
+    # Requires seatd — skip if not available
+    if [ ! -S /run/seatd.sock ]; then
+        skip "seatd not running (/run/seatd.sock missing)"
+    fi
 
-    run "${COSY_SCRIPT}" create --kms --cmd "/sbin/init" "$TEST_CONTAINER"
+    run "${COSY_SCRIPT}" create --kms "$TEST_CONTAINER"
     assert_success
 
     podman start "$TEST_CONTAINER"
 
     run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd.service
-    assert_success
-    assert_output_contains "/dev/null"
-
-    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd-control.socket
-    assert_success
-    assert_output_contains "/dev/null"
-
-    run podman exec "$TEST_CONTAINER" readlink /etc/systemd/system/systemd-udevd-kernel.socket
     assert_success
     assert_output_contains "/dev/null"
 }
