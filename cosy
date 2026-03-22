@@ -2561,6 +2561,11 @@ setup_all_features() {
 }
 
 # ==============================================================================
+# PRE-START CONFIG (written to stopped container via podman cp)
+# ==============================================================================
+
+
+# ==============================================================================
 # BOOTSTRAP SCRIPT CREATION
 # ==============================================================================
 
@@ -2677,12 +2682,14 @@ if [ "\${ENABLE_SUDO:-false}" = "true" ]; then
     fi
 fi
 
-# Write user identity for systemd services (e.g. KMS compositors that need
-# to drop privileges from root while preserving keep-groups)
+# Write user identity for systemd services
 cat > /etc/cosy-user.env <<USERENV_EOF
 COSY_UID=\$TARGET_UID
 COSY_GID=\$TARGET_GID
 COSY_USER=\$TARGET_USER
+HOME=\$TARGET_HOME
+USER=\$TARGET_USER
+SHELL=/bin/bash
 XDG_RUNTIME_DIR=/run/user/\$TARGET_UID
 USERENV_EOF
 
@@ -2743,9 +2750,8 @@ BOOTSTRAP_EOF
     fi
 
     # Mask journald in systemd containers — its security sandbox requires caps
-    # (SYS_ADMIN, SYSLOG, etc.) that don't exist in the container's user namespace,
-    # causing exit code 218/CAPABILITIES. Instead, redirect all service output to
-    # PID 1's stdout which podman captures and writes to the host journal.
+    # (SYS_ADMIN, SYSLOG, etc.) that don't exist in the container's user namespace.
+    # Note: symlinks can't be podman-cp'd rootless, so masks must be in bootstrap.
     if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
         echo ""
         echo "# Mask journald (sandbox fails in containers)"
@@ -2763,7 +2769,7 @@ BOOTSTRAP_EOF
         echo "SYSCONF"
         echo ""
         echo "# Create XDG_RUNTIME_DIR on every boot (/run is tmpfs, wiped on restart)"
-        echo "cat > /etc/systemd/system/cosy-runtime-dir.service <<RTDIR"
+        echo "cat > /etc/systemd/system/cosy-runtime-dir.service <<'RTDIR'"
         echo "[Unit]"
         echo "Description=Create XDG_RUNTIME_DIR for cosy user"
         echo "DefaultDependencies=no"
@@ -2777,6 +2783,8 @@ BOOTSTRAP_EOF
         echo "[Install]"
         echo "WantedBy=basic.target"
         echo "RTDIR"
+        echo ""
+        echo "# Enable cosy-runtime-dir service"
         echo "mkdir -p /etc/systemd/system/basic.target.wants"
         echo "ln -sf /etc/systemd/system/cosy-runtime-dir.service /etc/systemd/system/basic.target.wants/cosy-runtime-dir.service"
     fi
@@ -2979,7 +2987,7 @@ run_podman_create() {
         wait_for_container_running "$COSY_CONTAINER_NAME" || exit 1
     fi
 
-    # Execute bootstrap script
+    # Execute bootstrap script (user creation, home dir, sudo, groups, etc.)
     BOOTSTRAP_SCRIPT=$(create_bootstrap_script)
     if [ "${DRY_RUN:-false}" = true ] || [ "${DEBUG:-false}" = true ]; then
         echo "podman exec --user root \"$COSY_CONTAINER_NAME\" /bin/sh -c '<bootstrap script>'"
@@ -2995,6 +3003,21 @@ run_podman_create() {
             --user root \
             "$COSY_CONTAINER_NAME" \
             /bin/sh -c "$BOOTSTRAP_SCRIPT"
+
+        # Systemd containers: bootstrap writes configs that systemd needs (env file,
+        # service units, masks). Reload and restart failed units now that everything
+        # is in place. Services fail on initial boot because bootstrap hadn't run yet.
+        if [ "$SYSTEMD_MODE" = "true" ] || [ "$SYSTEMD_MODE" = "always" ]; then
+            podman exec --user root "$COSY_CONTAINER_NAME" \
+                /bin/sh -c '
+                    failed=$(systemctl list-units --state=failed --plain --no-legend | awk "{print \$1}")
+                    systemctl daemon-reload
+                    systemctl reset-failed
+                    if [ -n "$failed" ]; then
+                        systemctl start $failed
+                    fi
+                ' 2>/dev/null || true
+        fi
     fi
 }
 
