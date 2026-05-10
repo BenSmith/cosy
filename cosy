@@ -40,6 +40,7 @@ COSY_A11Y_DEFAULT="${COSY_A11Y:-false}"
 
 # Display configuration
 COSY_DISPLAY_DEFAULT="${COSY_DISPLAY:-true}"
+COSY_X11_DEFAULT="${COSY_X11:-true}"
 
 # GPU configuration
 COSY_GPU_DEFAULT="${COSY_GPU:-false}"
@@ -574,6 +575,7 @@ build_features_json() {
     json+="\"dbus\":${ENABLE_DBUS:-false},"
     json+="\"dbus_system\":${ENABLE_DBUS_SYSTEM:-false},"
     json+="\"display\":${ENABLE_DISPLAY:-true},"
+    json+="\"x11\":${ENABLE_X11:-true},"
     json+="\"gpu\":${ENABLE_GPU:-false},"
     json+="\"kms\":${ENABLE_KMS:-false},"
 
@@ -955,12 +957,26 @@ feature_display_detect() {
     else
         ENABLE_DISPLAY=false
     fi
+
+    local x11_label
+    x11_label=$(get_cached_label "$container" "cosy.x11")
+
+    if [ "$x11_label" = "false" ]; then
+        ENABLE_X11=false
+    else
+        ENABLE_X11=true
+    fi
 }
 
 feature_display_parse() {
     case "$1" in
         --no-display)
             ENABLE_DISPLAY=false
+            PARSE_CONSUMED=1
+            return 0
+            ;;
+        --no-x11)
+            ENABLE_X11=false
             PARSE_CONSUMED=1
             return 0
             ;;
@@ -981,27 +997,29 @@ feature_display_setup() {
             fi
         fi
 
-        DISPLAY_ARGS+=(
-            -e "DISPLAY=$detected_display"
-            -v "/tmp/.X11-unix:/tmp/.X11-unix:ro"
-        )
-
-        local xauth_file="${XAUTHORITY:-}"
-        if [ -z "$xauth_file" ] || [ ! -f "$xauth_file" ]; then
-            # Try to find .mutter-Xwaylandauth or .Xauthority in XDG_RUNTIME_DIR
-            if [ -n "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
-                xauth_file=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name ".mutter-Xwaylandauth.*" -type f 2>/dev/null | head -1)
-            fi
-            if [ -z "$xauth_file" ] && [ -f "$HOME/.Xauthority" ]; then
-                xauth_file="$HOME/.Xauthority"
-            fi
-        fi
-
-        if [ -n "$xauth_file" ] && [ -f "$xauth_file" ]; then
+        if [ "${ENABLE_X11:-true}" = true ]; then
             DISPLAY_ARGS+=(
-                -v "$xauth_file:/home/$HOST_USER/.Xauthority:ro"
-                -e "XAUTHORITY=/home/$HOST_USER/.Xauthority"
+                -e "DISPLAY=$detected_display"
+                -v "/tmp/.X11-unix:/tmp/.X11-unix:ro"
             )
+
+            local xauth_file="${XAUTHORITY:-}"
+            if [ -z "$xauth_file" ] || [ ! -f "$xauth_file" ]; then
+                # Try to find .mutter-Xwaylandauth or .Xauthority in XDG_RUNTIME_DIR
+                if [ -n "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
+                    xauth_file=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name ".mutter-Xwaylandauth.*" -type f 2>/dev/null | head -1)
+                fi
+                if [ -z "$xauth_file" ] && [ -f "$HOME/.Xauthority" ]; then
+                    xauth_file="$HOME/.Xauthority"
+                fi
+            fi
+
+            if [ -n "$xauth_file" ] && [ -f "$xauth_file" ]; then
+                DISPLAY_ARGS+=(
+                    -v "$xauth_file:/home/$HOST_USER/.Xauthority:ro"
+                    -e "XAUTHORITY=/home/$HOST_USER/.Xauthority"
+                )
+            fi
         fi
 
         local detected_wayland="${WAYLAND_DISPLAY:-}"
@@ -1014,15 +1032,21 @@ feature_display_setup() {
         fi
 
         if [ -n "$detected_wayland" ] && [ -S "$XDG_RUNTIME_DIR/$detected_wayland" ]; then
+            # Mount the host socket under a dot-prefixed name so wlroots (nested
+            # compositors like labwc) can freely create wayland-0, wayland-1, etc.
+            # without hitting EBUSY from the bind-mounted file in the same tmpfs.
+            # libwayland-client treats an absolute WAYLAND_DISPLAY as a direct path.
+            local container_wayland_path="/run/user/$HOST_UID/.host-$detected_wayland"
             DISPLAY_ARGS+=(
-                -e "WAYLAND_DISPLAY=$detected_wayland"
+                -e "WAYLAND_DISPLAY=$container_wayland_path"
                 -e "XDG_RUNTIME_DIR=/run/user/$HOST_UID"
-                -v "$XDG_RUNTIME_DIR/$detected_wayland:/run/user/$HOST_UID/$detected_wayland:ro"
+                -v "$XDG_RUNTIME_DIR/$detected_wayland:$container_wayland_path:ro"
             )
         fi
 
         # Store feature state in label for detection
         LABEL_ARGS+=(--label "cosy.display=true")
+        LABEL_ARGS+=(--label "cosy.x11=${ENABLE_X11:-true}")
     fi
 }
 
@@ -1369,13 +1393,20 @@ get_protected_mount_destinations() {
     protected_paths+=("/home/$HOST_USER")
 
     if [ "${ENABLE_DISPLAY:-true}" = true ]; then
-        protected_paths+=(
-            "/tmp/.X11-unix"
-            "/home/$HOST_USER/.Xauthority"
-        )
+        if [ "${ENABLE_X11:-true}" = true ]; then
+            protected_paths+=(
+                "/tmp/.X11-unix"
+                "/home/$HOST_USER/.Xauthority"
+            )
+        fi
         # Wayland sockets vary, check at runtime
         if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            protected_paths+=("/run/user/$HOST_UID/${WAYLAND_DISPLAY}")
+            # WAYLAND_DISPLAY may be a bare name or an absolute path
+            if [[ "${WAYLAND_DISPLAY}" == /* ]]; then
+                protected_paths+=("${WAYLAND_DISPLAY}")
+            else
+                protected_paths+=("/run/user/$HOST_UID/${WAYLAND_DISPLAY}")
+            fi
         fi
     fi
 
@@ -3033,10 +3064,16 @@ exec_as_user() {
         chmod 0700 /run/user/$HOST_UID
     " 2>/dev/null || true
 
+    # Mirror the same socket renaming done at container create time
+    local exec_wayland="${WAYLAND_DISPLAY:-}"
+    if [ -n "$exec_wayland" ] && [[ "$exec_wayland" != /* ]]; then
+        exec_wayland="/run/user/$HOST_UID/.host-$exec_wayland"
+    fi
+
     podman exec -it \
         -e DISPLAY="${DISPLAY:-}" \
         -e PULSE_SERVER="${PULSE_SERVER:-}" \
-        -e WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+        -e WAYLAND_DISPLAY="$exec_wayland" \
         -w "/home/$HOST_USER" \
         --user "$HOST_UID:$HOST_GID" \
         "$COSY_CONTAINER_NAME" \
@@ -3098,6 +3135,7 @@ init_container_vars() {
     ENABLE_DBUS="${COSY_DBUS_DEFAULT}"
     ENABLE_DBUS_SYSTEM="${COSY_DBUS_SYSTEM_DEFAULT}"
     ENABLE_DISPLAY="${COSY_DISPLAY_DEFAULT}"
+    ENABLE_X11="${COSY_X11_DEFAULT}"
     ENABLE_GPU="${COSY_GPU_DEFAULT}"
     ENABLE_INPUT="${COSY_INPUT_DEFAULT}"
     ENABLE_KMS="${COSY_KMS_DEFAULT}"
@@ -3196,6 +3234,7 @@ Options:
   --network MODE                Network mode: default, none, or host
   --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
+  --no-x11                      Disable X11 socket passthrough (keep Wayland only)
   --podman                      Enable Podman socket access
   --read-only                   Mount container root filesystem as read-only
   --security-opt OPTION         Security options (repeatable)
@@ -3234,6 +3273,7 @@ Options:
   --network MODE                Network mode: default, none, or host
   --no-create-groups            Disable automatic group creation in container
   --no-display                  Disable display forwarding (enabled by default)
+  --no-x11                      Disable X11 socket passthrough (keep Wayland only)
   --podman                      Enable Podman socket access
   --root                        Execute command as root user
   --security-opt OPTION         Security options (repeatable)
@@ -3295,6 +3335,7 @@ Options:
   --kms                         Enable KMS direct display
   --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
+  --no-x11                      Disable X11 socket passthrough (keep Wayland only)
   --podman                      Enable Podman socket access
   --security-opt OPTION         Security options (repeatable)
   --show-diff                   Preview changes without executing
@@ -3336,6 +3377,7 @@ Options:
   --kms                         Enable KMS direct display
   --network MODE                Network mode: default, none, or host
   --no-display                  Disable display forwarding
+  --no-x11                      Disable X11 socket passthrough (keep Wayland only)
   --podman                      Enable Podman socket access
   --security-opt OPTION         Security options (repeatable)
   --show-diff                   Preview changes without executing
@@ -3967,6 +4009,9 @@ build_cli_flags() {
     fi
     if [ "${ENABLE_DISPLAY:-true}" = false ]; then
         flags+=(--no-display)
+    fi
+    if [ "${ENABLE_X11:-true}" = false ]; then
+        flags+=(--no-x11)
     fi
     # Only include --network if it's not the default
     if [ "${NETWORK_MODE:-default}" != "default" ]; then
@@ -6291,11 +6336,11 @@ _cosy() {
                     COMP_CWORD=${#COMP_WORDS[@]}-1
 
                     # Add cosy-specific flags to what podman suggested
-                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo --root"
+                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --no-x11 --sudo --root"
                     COMPREPLY+=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 else
                     # Podman completion not available, just show cosy flags
-                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo --root"
+                    local cosy_flags="--audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --no-x11 --sudo --root"
                     COMPREPLY=( $(compgen -W "${cosy_flags}" -- ${cur}) )
                 fi
             else
@@ -6351,7 +6396,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + recreate-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo"
+                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --no-x11 --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6362,7 +6407,7 @@ _cosy() {
             # Suggest flags and container names
             if [[ ${cur} == -* ]]; then
                 # Cosy feature flags + clone-specific flags (not intercepted podman flags)
-                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --sudo"
+                local flags="--show-diff --yes --audio --gpu --input --kms --dbus --dbus-system --a11y --podman --no-display --no-x11 --sudo"
                 COMPREPLY=( $(compgen -W "${flags}" -- ${cur}) )
             else
                 local containers=$(podman ps -a --filter "label=cosy.managed=true" --format "{{.Names}}" 2>/dev/null)
@@ -6459,6 +6504,7 @@ _cosy() {
                         '--input[Enable input device passthrough]' \
                         '--kms[Enable KMS direct display]' \
                         '--no-display[Disable display]' \
+                        '--no-x11[Disable X11 passthrough]' \
                         '--podman[Enable Podman socket]' \
                         '*:name:_cosy_homes'
 
@@ -6479,6 +6525,7 @@ _cosy() {
                         '--input[Enable input device passthrough]' \
                         '--kms[Enable KMS direct display]' \
                         '--no-display[Disable display]' \
+                        '--no-x11[Disable X11 passthrough]' \
                         '--podman[Enable Podman socket]' \
                         '--root[Run as root user]'
 
@@ -6515,6 +6562,7 @@ _cosy() {
                         '--kms[Enable KMS direct display]' \
                         '--network[Network mode]:mode:(default host none)' \
                         '--no-display[Disable display]' \
+                        '--no-x11[Disable X11 passthrough]' \
                         '--podman[Enable Podman socket]' \
                         '--show-diff[Show diff only]' \
                         '--systemd[Enable systemd]:mode:(true always false)' \
@@ -6623,6 +6671,7 @@ Options (for create/run):
   --kms                Enable KMS direct display (implies --gpu --input --systemd=always)
   --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
+  --no-x11             Disable X11 socket passthrough (keep Wayland only)
   --podman             Enable Podman socket passthrough
 
 Examples:
@@ -6699,6 +6748,7 @@ Options (for create/run):
   --kms                Enable KMS direct display (implies --gpu --input --systemd=always)
   --image, -i          Base image (default: $COSY_DEFAULT_IMAGE)
   --no-display         Disable display passthrough (enabled by default)
+  --no-x11             Disable X11 socket passthrough (keep Wayland only)
   --podman             Enable Podman socket passthrough
 
 Examples:
