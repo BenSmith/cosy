@@ -67,7 +67,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          bats -j 4 test/integration/
+          bats -j 4 --print-output-on-failure test/integration/
         env:
           # Skip tests that require actual hardware
           COSY_TEST_SKIP_HARDWARE: "true"
