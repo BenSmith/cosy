@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora-version: [43, 42]
+        fedora-version: [43, 42, 44, 45]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,6 +71,9 @@ jobs:
         env:
           # Skip tests that require actual hardware
           COSY_TEST_SKIP_HARDWARE: "true"
+          # Drive the default container image from the matrix so tests run
+          # against the Fedora version being validated
+          COSY_IMAGE: "fedora:${{ matrix.fedora-version }}"
 
   seccomp-tests:
     name: Seccomp Profile Tests
