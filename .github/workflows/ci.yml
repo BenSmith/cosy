@@ -32,7 +32,7 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: fedora:43
+      image: fedora:45
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora-version: [43, 42, 44, 45]
+        fedora-version: [42, 43, 44, 45]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
