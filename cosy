@@ -2624,8 +2624,9 @@ chown -R "\$TARGET_UID:\$TARGET_GID" "\$TARGET_HOME" $BS_STDERR || true
 # Set up XDG_RUNTIME_DIR ownership
 # tmpfs is created by podman, but we need to set correct ownership
 # Per XDG spec: must be owned by user with mode 0700
-chown "\$TARGET_UID:\$TARGET_GID" "/run/user/\$TARGET_UID"
-chmod 0700 "/run/user/\$TARGET_UID"
+# /run/user/<uid> may not exist on all runtimes; don't abort setup
+chown "\$TARGET_UID:\$TARGET_GID" "/run/user/\$TARGET_UID" || true
+chmod 0700 "/run/user/\$TARGET_UID" || true
 
 # Ensure podman socket directory ownership matches user
 if [ -d "/run/user/\$TARGET_UID/podman" ]; then

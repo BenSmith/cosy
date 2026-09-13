@@ -15,7 +15,7 @@ jobs:
       image: fedora:43
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install ShellCheck
         run: dnf install -y ShellCheck
@@ -35,7 +35,7 @@ jobs:
       image: fedora:45
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: dnf install -y bats
@@ -50,10 +50,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora-version: [42, 43, 44, 45]
+        fedora-version: [43, 44, 45]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Fedora container for testing
         run: |
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
