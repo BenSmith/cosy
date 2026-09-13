@@ -3043,6 +3043,7 @@ exec_as_user() {
         -e DISPLAY="${DISPLAY:-}" \
         -e PULSE_SERVER="${PULSE_SERVER:-}" \
         -e WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+        -e COLORTERM="${COLORTERM:-}" \
         -w "/home/$HOST_USER" \
         --user "$HOST_UID:$HOST_GID" \
         "$COSY_CONTAINER_NAME" \
@@ -3069,6 +3070,7 @@ exec_as_root() {
     podman exec \
         "${exec_flags[@]}" \
         -e HOME=/root \
+        -e COLORTERM="${COLORTERM:-}" \
         -w "/root" \
         --user root \
         "$COSY_CONTAINER_NAME" \
