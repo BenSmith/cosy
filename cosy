@@ -2667,6 +2667,11 @@ if [ "\${ENABLE_SUDO:-false}" = "true" ]; then
         mkdir -p /etc/sudoers.d
         echo "\$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cosy-user
         chmod 0440 /etc/sudoers.d/cosy-user
+        # pam_unix's unix_chkpwd helper runs as euid 0 but without
+        # CAP_DAC_OVERRIDE in some rootless container runtimes (podman 4.x
+        # on Ubuntu), so it cannot read /etc/shadow (mode 0000) and sudo
+        # fails with "PAM account management error". Owner-read fixes it.
+        chmod u+r /etc/shadow
     fi
 fi
 

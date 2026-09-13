@@ -65,25 +65,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bats
 
-      - name: Diagnose sudo failure (temporary)
-        run: |
-          set -x
-          podman --version
-          podman info --format '{{.Host.Security.Rootless}} storage={{.Store.GraphDriverName}}' || true
-          ./cosy create --sudo diag-test || true
-          U=$(podman exec diag-test printenv COSY_CONTAINER_USER || true)
-          echo "user=$U"
-          podman exec diag-test getent passwd 1001 || true
-          podman exec diag-test sh -c "grep '^$U:' /etc/shadow || echo NO_SHADOW_ENTRY" || true
-          podman exec diag-test ls -la /etc/sudoers.d/ || true
-          podman exec diag-test cat /etc/sudoers.d/cosy-user || true
-          podman exec diag-test ls -la /usr/bin/sudo || true
-          podman exec --user "$U" diag-test id || true
-          podman exec --user "$U" diag-test sudo -n whoami; echo "sudo_exit=$?"
-          ./cosy rm --home diag-test || true
-        env:
-          COSY_TEST_SKIP_HARDWARE: "true"
-
       - name: Run integration tests
         run: |
           bats -j 4 --print-output-on-failure test/integration/
